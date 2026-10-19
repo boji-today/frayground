@@ -74,7 +74,7 @@ CREATE TABLE rooms (
   CONSTRAINT ck_singleton CHECK (singleton_key IS NULL OR singleton_key=1),
   CONSTRAINT ck_room_revision CHECK (revision >= 0 AND event_seq >= 0),
   CONSTRAINT ck_mode CHECK (execution_mode IN ('AUTO','STEP')),
-  CONSTRAINT ck_execution CHECK (execution_status IN ('PAUSED','RUNNING','PAUSING','STOPPED')),
+  CONSTRAINT ck_execution CHECK (execution_status IN ('PAUSED','RUNNING','PAUSING')),
   CONSTRAINT ck_health CHECK (health IN ('OK','ERROR'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -315,7 +315,7 @@ COMMIT;
 3. 校验当前 Match、Turn、Participant 关系，Decision 为 RUNNING、属于该席位且版本一致，now < deadline，Match ACTIVE。PAUSING 不禁止当前决策结算。
 4. 读取注册项，执行 Schema、强类型转换和权威规则校验；合法则计算新状态。非法可信当前动作使 Decision FAILED 并暂停；身份/关联不匹配不得破坏合法 Decision。
 5. 插入 action_submissions 最终回执（本事务不可对外见中间态），插入 settlements；条件更新 Decision 为 COMPLETED，条件更新 Match 的 state_version 为 v+1；影响行数均为 1，否则全部回滚。
-6. 写版本 v+1 快照、DiscPlaced/MatchFinished 事件，关闭 Turn；非终局创建下一 OPEN Turn，终局清空 current_turn_id 并置 FINISHED/STOPPED。
+6. 写版本 v+1 快照、DiscPlaced/MatchFinished 事件，关闭 Turn；非终局创建下一 OPEN Turn，终局清空 current_turn_id、将 Match 置 FINISHED，并将 Room 执行状态置 PAUSED。
 7. 写 DecisionRecord 校验/执行结果和 RoomEvent；根据模式/暂停状态设置执行状态。递增 Room revision/event_seq，提交。
 8. 提交后返回回执，再排队 tick；tick 再查许可，不能直接在结算事务递归调用模型。
 

@@ -1,0 +1,209 @@
+# 后端核心契约
+
+图对应已有 Java 契约。状态迁移以 [领域模型](../docs/03-domain-model.md) 为准。箭头表示协作方向：`domain` 不依赖外层，`engine`、`application`、`agent` 依赖 `domain`，`adapter` 再依赖它们。
+
+## 类关系
+
+```mermaid
+classDiagram
+  direction TB
+  class GameState
+  class GameAction
+  class GameObservation
+  class GameDefinition
+  class GameEventDraft
+  class Resolution
+  class GameKey
+  class Participant
+  class TurnPlan
+  class GameResult
+  class GameRegistry
+  class GameCodec
+
+  GameDefinition --> GameKey
+  GameDefinition --> Participant
+  GameDefinition --> GameState
+  GameDefinition --> GameAction
+  GameDefinition --> GameObservation
+  GameDefinition --> TurnPlan
+  GameDefinition --> Resolution
+  Resolution --> GameEventDraft
+  Resolution --> GameResult
+  GameRegistry --> GameDefinition : definition
+  GameRegistry --> GameCodec : codec
+  GameCodec --> GameState
+  GameCodec --> GameAction
+  GameCodec --> GameObservation
+
+  class Room
+  class RoomHealth
+  class Match
+  class TurnContext
+  class TurnStatus
+  class ControlCommand
+  class CommandResult
+  class TurnScheduler
+  class StartedDecision
+  class DecisionLifecycle
+  class GameEngine
+
+  Room --> Match : activeMatch
+  Room --> RoomHealth
+  Match --> GameKey
+  Match --> Participant
+  Match --> TurnContext
+  TurnContext --> TurnStatus
+  TurnScheduler --> ControlCommand : handleCommand
+  TurnScheduler --> CommandResult
+  DecisionLifecycle --> StartedDecision : start
+  GameEngine --> GameDefinition : apply
+
+  class Decision
+  class Settlement
+  class DecisionStatus
+  class ActionEnvelope
+  class ActionSubmissionResult
+  class SubmissionStatus
+  class AgentRunner
+  class RuntimeOutcome
+  class SelectedAction
+  class StructuredAction
+  class AgentRuntime
+  class AgentContextBuilder
+  class ModelAdapter
+  class ActionSubmitter
+
+  Decision --> TurnContext
+  Decision --> DecisionStatus
+  AgentRuntime --> RuntimeOutcome
+  RuntimeOutcome <|-- SelectedAction
+  RuntimeOutcome <|-- StructuredAction
+  AgentRunner --> AgentRuntime : decide
+  AgentRunner --> AgentContextBuilder : build
+  AgentRunner --> ModelAdapter : invoke
+  AgentRunner --> ActionSubmitter : submit
+  ActionSubmitter --> ActionEnvelope
+  ActionSubmitter --> ActionSubmissionResult
+  ActionSubmissionResult --> SubmissionStatus
+  Settlement --> ActionEnvelope
+  Settlement --> Match
+
+  class PromptVersion
+  class AgentConfiguration
+  class PromptPublisher
+
+  PromptPublisher --> PromptVersion : publish
+  Decision --> PromptVersion : binds
+  Decision --> AgentConfiguration : binds
+```
+
+- `GameState` / `GameAction` / `GameObservation`：规则状态、结构化动作和席位可见观察。
+- `GameDefinition`：定义初始化、观察、动作校验、阶段结算和终局判定。
+- `GameEventDraft` / `Resolution` / `GameResult`：规则产生的事件草稿、结算结果和游戏结局。
+- `GameKey` / `Participant` / `TurnPlan`：规则版本标识、局内席位和下一阶段计划。
+- `GameRegistry` / `GameCodec`：按游戏键注册规则，并在 JSON 边界转换强类型对象。
+- `Room` / `Match`：跨重置的会话容器与其中的一局游戏。
+- `TurnContext` / `TurnStatus`：行动阶段的身份、基准版本和生命周期。
+- `ControlCommand` / `CommandResult`：控制请求及其确定性结果。
+- `TurnScheduler` / `DecisionLifecycle`：房间串行调度入口与决策生命周期协调器。
+- `GameEngine`：调用规则完成权威结算，不选择模型动作。
+- `Decision` / `DecisionStatus` / `StartedDecision`：一次决策的生命周期、状态和启动时固定的版本、观察与期限快照。
+- `RuntimeOutcome` / `SelectedAction` / `StructuredAction`：Runtime 返回的候选选择、结构化动作或失败结果。
+- `AgentRunner` / `AgentRuntime`：编排一次决策与执行 Agent 决策机制；二者都不能直接修改世界。
+- `AgentContextBuilder` / `ModelAdapter`：构造模型输入并隔离具体模型供应商。
+- `ActionEnvelope` / `ActionSubmitter`：带身份版本的动作提交，以及权威校验和结算入口。
+- `ActionSubmissionResult` / `SubmissionStatus` / `Settlement`：提交回执、执行阶段和成功世界变化。
+- `PromptVersion` / `AgentConfiguration` / `PromptPublisher`：不可变策略版本、Runtime 配置快照和发布入口。
+- `RoomHealth`：房间可用性标记，不参与 Match 或 Decision 的业务状态迁移。
+
+## MatchStatus
+
+```mermaid
+stateDiagram-v2
+  [*] --> READY
+  READY --> ACTIVE : "start / step"
+  ACTIVE --> FINISHED : "规则终局"
+  READY --> ABORTED : reset
+  ACTIVE --> ABORTED : reset
+  FINISHED --> [*]
+  ABORTED --> [*]
+```
+
+`ABORTED` 是运行终止，不是某方获胜。终局后除 reset 外不再推进；reset 隔离旧局并建立新的 `READY` 局。
+
+## ExecutionStatus
+
+`ExecutionStatus` 是执行调度状态，包含当前房间暂停、运行或等待暂停；它与描述单局生命周期的 `MatchStatus` 正交。终局由 `MatchStatus.FINISHED` 表示，结算后 Room 保持 `PAUSED` 且不再推进。`ExecutionMode` 只有 `AUTO` 与 `STEP`：模式决定下一次许可，执行状态决定当前是否运行。
+
+```mermaid
+stateDiagram-v2
+  [*] --> PAUSED
+  PAUSED --> RUNNING : "start / continue / step"
+  RUNNING --> PAUSING : "pause 或 set_mode STEP，已有决策"
+  RUNNING --> PAUSED : "pause 或 set_mode STEP，无决策"
+  RUNNING --> PAUSED : "非终局且结束时 mode=STEP，决策失败/超时，或形成终局"
+  PAUSING --> PAUSED : "当前决策非终局结束、失败/超时，或形成终局"
+  RUNNING --> PAUSED : cancel_decision
+  PAUSING --> PAUSED : cancel_decision
+  RUNNING --> PAUSED : "重启恢复或 reset"
+  PAUSING --> PAUSED : "重启恢复或 reset"
+```
+
+`set_mode AUTO` 只改变模式，不解除 `PAUSED` 或 `PAUSING`；若在单步决策仍为 `RUNNING` 时切换，则按结算时的 `AUTO` 模式继续调度。终局优先：当前决策形成胜利或平局后，Match 置为 `FINISHED`，Room 保持 `PAUSED`，不再启动下一次决策。重启恢复会取消未完成决策并暂停。`reset` 保留同一 `Room`，但会隔离旧局，将 `activeMatchId` 指向新建的 `READY` Match，推进 `revision / eventSeq`，并把执行状态初始化为 `STEP / PAUSED`。
+
+## DecisionStatus
+
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING
+  PENDING --> RUNNING : "原子绑定版本、观察、期限"
+  PENDING --> CANCELLED : "中止 / 重置 / 重启"
+  RUNNING --> COMPLETED : "权威事务结算成功"
+  RUNNING --> FAILED : "调用、解析或校验失败"
+  RUNNING --> EXPIRED : "deadline 已到"
+  RUNNING --> CANCELLED : "中止 / 重置 / 重启"
+  COMPLETED --> [*]
+  FAILED --> [*]
+  EXPIRED --> [*]
+  CANCELLED --> [*]
+```
+
+MVP 中 `PENDING` 到 `RUNNING` 可以在同一次启动事务内完成。终态不能回到 `RUNNING`；迟到响应只追加审计，不改变原结果。
+
+## TurnStatus
+
+```mermaid
+stateDiagram-v2
+  [*] --> OPEN
+  OPEN --> RESOLVED : "成功结算"
+  OPEN --> CANCELLED : "reset / 中止"
+  RESOLVED --> [*]
+  CANCELLED --> [*]
+```
+
+一个 `Turn` 可以包含一次或多次失败的 `Decision`，但只有权威成功结算才推进 Match 的 `stateVersion`。`RESOLVED` 和 `CANCELLED` 都是终态。
+
+## SubmissionStatus
+
+```mermaid
+stateDiagram-v2
+  [*] --> SUBMISSION
+  SUBMISSION --> EXECUTED : "权威校验通过并结算"
+  SUBMISSION --> REJECTED : "身份、期限、版本或规则拒绝"
+  SUBMISSION --> ACCEPTED : "未来同时回合：先收取动作"
+  ACCEPTED --> EXECUTED : "阶段统一结算成功"
+  ACCEPTED --> REJECTED : "阶段统一结算拒绝"
+  EXECUTED --> [*]
+  REJECTED --> [*]
+```
+
+MVP 为顺序回合，提交最终只能是 `EXECUTED` 或 `REJECTED`。`ACCEPTED` 仅为未来同时回合保留，不能被当成世界已经改变。
+
+## RoomHealth
+
+`RoomHealth` 是可用性标记，不是业务流程状态：
+
+- `OK`：房间可以按当前执行状态接受控制或推进。
+- `ERROR`：恢复、快照、规则版本或持久化存在故障；推进返回不可用错误并保留已有事实。
+
+文档没有规定 `ERROR → OK` 的自动迁移，因此不在图中添加恢复迁移。

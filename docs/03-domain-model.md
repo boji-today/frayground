@@ -93,7 +93,7 @@ GameResult 为 `ONGOING/WIN/DRAW`，含 winnerParticipantIds、scores、reason�
 
 ## 3. Match 与执行状态
 
-MatchStatus：READY、ACTIVE、FINISHED、ABORTED。ExecutionMode：AUTO、STEP。ExecutionStatus：PAUSED、RUNNING、PAUSING、STOPPED。房间另有 health=OK/ERROR 表示恢复或存储故障，不扩充为游戏胜负。
+MatchStatus：READY、ACTIVE、FINISHED、ABORTED。ExecutionMode：AUTO、STEP。ExecutionStatus：PAUSED、RUNNING、PAUSING。ExecutionStatus 只描述 Room 的执行调度，不表达 Match 是否终局；终局由 MatchStatus 表示，终局后的 Room 保持 PAUSED 且不再推进。房间另有 health=OK/ERROR 表示恢复或存储故障，不扩充为游戏胜负。
 
 ```mermaid
 stateDiagram-v2
@@ -112,10 +112,8 @@ stateDiagram-v2
   PAUSED --> RUNNING: start / continue / step
   RUNNING --> PAUSING: pause 或 set_mode STEP，已有决策
   RUNNING --> PAUSED: pause 或 set_mode STEP，无决策
-  RUNNING --> PAUSED: STEP 决策结束 或 决策失败
-  PAUSING --> PAUSED: 当前决策结束
-  RUNNING --> STOPPED: 终局
-  PAUSING --> STOPPED: 终局
+  RUNNING --> PAUSED: STEP 决策结束、决策失败或终局
+  PAUSING --> PAUSED: 当前决策结束、失败或终局
   RUNNING --> PAUSED: cancel_decision
   PAUSING --> PAUSED: cancel_decision
 ```
@@ -135,7 +133,7 @@ busy 时 step 返回 CONTROL_BUSY，并持久化命令回执，不排队；有�
 
 所有控制含 commandId、expectedRoomRevision、expectedMatchId。先查同 ID 回执，再检查版本和状态；相同命令重试返回原结果。不同 commandId 的重复点击也不能积累许可：串行化后第一次把 PAUSED 改为 RUNNING，后续 busy 或修订冲突。服务端确认切换后禁止启动新决策；若新决策在切换命令之前已线性化，则它就是需要完成的当前决策，界面显示其 ID。
 
-正常终局优先于“暂停后状态”，不得把 FINISHED 覆盖成 ACTIVE/PAUSED。reset 使旧 Match 的所有许可失效；排队 tick 必须检查所携带 matchId 和当前指针。
+正常终局优先于“暂停后状态”：结算将 Match 置为 FINISHED、Room 执行状态置为 PAUSED，且不得再启动决策；不能把 FINISHED 覆盖成 ACTIVE。reset 使旧 Match 的所有许可失效并创建新 Match；排队 tick 必须检查所携带 matchId 和当前指针。
 
 ## 4. Decision 状态机
 

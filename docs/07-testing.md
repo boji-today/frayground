@@ -43,7 +43,7 @@
 | 失败/超时 | 注入错误/推进 Clock | FAILED/EXPIRED，棋盘不变并 PAUSED |
 | 中止/迟到 | cancel 后再完成 Future | CANCELLED 保持，棋盘不变，无成功事件 |
 | reset/旧 tick | reset 后投递旧响应和旧 tick | 不影响新 Match；配置保留，新席位 ID |
-| 终局与暂停重叠 | 当前落子获胜 | FINISHED/STOPPED 不被 PAUSED 覆盖 |
+| 终局与暂停重叠 | 当前落子获胜 | Match=FINISHED、Room=PAUSED，且不再调度 |
 | 房间隔离 | 测试创建两 Room，一方 Future 挂起 | 另一房间可控制、提交；无全局锁阻塞 |
 
 ## 4. Prompt、配置与 Stateless

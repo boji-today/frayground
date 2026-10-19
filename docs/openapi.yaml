@@ -771,7 +771,6 @@ components:
       - PAUSED
       - RUNNING
       - PAUSING
-      - STOPPED
     DecisionStatus:
       type: string
       enum:

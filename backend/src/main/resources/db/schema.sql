@@ -60,7 +60,7 @@ CREATE TABLE rooms (
   CONSTRAINT ck_singleton CHECK (singleton_key IS NULL OR singleton_key=1),
   CONSTRAINT ck_room_revision CHECK (revision >= 0 AND event_seq >= 0),
   CONSTRAINT ck_mode CHECK (execution_mode IN ('AUTO','STEP')),
-  CONSTRAINT ck_execution CHECK (execution_status IN ('PAUSED','RUNNING','PAUSING','STOPPED')),
+  CONSTRAINT ck_execution CHECK (execution_status IN ('PAUSED','RUNNING','PAUSING')),
   CONSTRAINT ck_health CHECK (health IN ('OK','ERROR'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
