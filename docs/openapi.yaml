@@ -1,0 +1,2808 @@
+openapi: 3.1.1
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: Frayground MVP Design Contract
+  version: 1.0.0
+  description: 设计契约，尚未实现。planned-mvp 为下一轮范围；future 不部署。本机管理面不是外部 Agent 授权面。
+servers:
+- url: http://localhost:8080
+  description: 计划中的本机服务
+tags:
+- name: Laboratory
+  description: 仅本机操作者管理面
+- name: ExternalAgent
+  description: 未来协议，不部署
+paths:
+  /api/v1/rooms/current:
+    get:
+      operationId: getCurrentRoom
+      summary: 获取唯一房间及一致快照
+      tags:
+      - Laboratory
+      parameters: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomView'
+              examples:
+                Room:
+                  $ref: '#/components/examples/Room'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+    post:
+      operationId: ensureCurrentRoom
+      summary: 获取或初始化唯一房间
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/LaboratoryClient'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '201':
+          description: 首次创建；已存在为 200
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomView'
+      x-implementation-status: planned-mvp
+  /api/v1/rooms/{roomId}:
+    get:
+      operationId: getRoom
+      summary: 获取房间
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/roomId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/rooms/{roomId}/commands:
+    post:
+      operationId: controlRoom
+      summary: 执行短事务控制命令，不等待模型
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/roomId'
+      - $ref: '#/components/parameters/LaboratoryClient'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+              examples:
+                CommandAck:
+                  $ref: '#/components/examples/CommandAck'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlCommand'
+            examples:
+              StepCommand:
+                $ref: '#/components/examples/StepCommand'
+  /api/v1/agents/{agentId}/configuration:
+    get:
+      operationId: getAgent
+      summary: 获取管理面配置和草稿
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/agentId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentView'
+              examples:
+                Agent:
+                  $ref: '#/components/examples/Agent'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/agents/{agentId}/prompt-draft:
+    put:
+      operationId: savePromptDraft
+      summary: 比较草稿修订号并保存
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/LaboratoryClient'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptDraft'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftUpdate'
+  /api/v1/rooms/{roomId}/agents/{agentId}/prompt-versions:
+    post:
+      operationId: publishPrompt
+      summary: 幂等发布指定草稿版本
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/roomId'
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/LaboratoryClient'
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersion'
+              examples:
+                PromptPublished:
+                  $ref: '#/components/examples/PromptPublished'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishPrompt'
+  /api/v1/agents/{agentId}/prompt-versions:
+    get:
+      operationId: listPromptVersions
+      summary: 按版本降序查询历史
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionPage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/rooms/{roomId}/agents/{agentId}/configuration:
+    put:
+      operationId: updateConfiguration
+      summary: 幂等创建配置版本
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/roomId'
+      - $ref: '#/components/parameters/agentId'
+      - $ref: '#/components/parameters/LaboratoryClient'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfiguration'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigUpdate'
+  /api/v1/rooms/{roomId}/matches:
+    get:
+      operationId: listMatches
+      summary: 查询历史比赛
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/roomId'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchPage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/matches/{matchId}:
+    get:
+      operationId: getMatch
+      summary: 获取比赛世界投影
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/matchId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/matches/{matchId}/snapshots/{stateVersion}:
+    get:
+      operationId: getSnapshot
+      summary: 历史版本，不调用模型
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/matchId'
+      - $ref: '#/components/parameters/stateVersion'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateSnapshot'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/matches/{matchId}/participants/{participantId}/observation:
+    get:
+      operationId: getObservation
+      summary: 按席位投影当前观察
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/matchId'
+      - $ref: '#/components/parameters/participantId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/matches/{matchId}/events:
+    get:
+      operationId: listGameEvents
+      summary: 按序号查询客观事件
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/matchId'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/after'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameEventPage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/matches/{matchId}/decisions:
+    get:
+      operationId: listDecisions
+      summary: 查询本局全部尝试
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/matchId'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionPage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/decisions/{decisionId}:
+    get:
+      operationId: getDecision
+      summary: 管理面审计详情，禁止未来 Agent 复用
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/decisionId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /api/v1/rooms/{roomId}/events:
+    get:
+      operationId: subscribeRoomEvents
+      summary: 订阅持久化事件
+      tags:
+      - Laboratory
+      parameters:
+      - $ref: '#/components/parameters/roomId'
+      - $ref: '#/components/parameters/after'
+      - $ref: '#/components/parameters/lastEventId'
+      responses:
+        '200':
+          description: SSE id=sequence，event=type，data=RoomEvent JSON；15 秒无 ID 心跳。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: 'id: 24
+
+                event: ACTION_RESOLVED
+
+                data: {"sequence":24,"roomId":"00000000-0000-4000-8000-000000000031","matchId":"20000000-0000-4000-8000-000000000001","roomRevision":18,"type":"ACTION_RESOLVED","occurredAt":"2026-10-19T08:00:00Z","payload":{"stateVersion":1,"decisionId":"50000000-0000-4000-8000-000000000001"}}
+
+
+                '
+          x-event-schema:
+            $ref: '#/components/schemas/RoomEvent'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: planned-mvp
+  /agent/v1/decisions/claim:
+    post:
+      operationId: claimDecision
+      summary: 未来：领取授权席位的固定任务
+      tags:
+      - ExternalAgent
+      parameters: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionRequest'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '204':
+          description: 当前无任务。
+      x-implementation-status: future
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimRequest'
+      security:
+      - AgentBearer: []
+  /agent/v1/actions:
+    post:
+      operationId: submitAction
+      summary: 未来：统一动作提交，MVP 使用内部 ActionSubmitter
+      tags:
+      - ExternalAgent
+      parameters: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionSubmissionResult'
+              examples:
+                Executed:
+                  $ref: '#/components/examples/Executed'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          description: 领域拒绝为 REJECTED 回执；格式/ID 内容冲突为 Error。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/Error'
+                - $ref: '#/components/schemas/ActionSubmissionResult'
+        '422':
+          description: 领域拒绝为 REJECTED 回执；格式/ID 内容冲突为 Error。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/Error'
+                - $ref: '#/components/schemas/ActionSubmissionResult'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: future
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionEnvelope'
+            examples:
+              Action:
+                $ref: '#/components/examples/Action'
+      security:
+      - AgentBearer: []
+  /agent/v1/actions/{actionId}:
+    get:
+      operationId: getActionResult
+      summary: 未来：查询有权读取的原回执
+      tags:
+      - ExternalAgent
+      parameters:
+      - $ref: '#/components/parameters/actionId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionSubmissionResult'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: future
+      security:
+      - AgentBearer: []
+  /agent/v1/decisions/{decisionId}:
+    get:
+      operationId: getExternalDecision
+      summary: 未来：自身决策状态，不返回管理面审计
+      tags:
+      - ExternalAgent
+      parameters:
+      - $ref: '#/components/parameters/decisionId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalDecisionView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-implementation-status: future
+      security:
+      - AgentBearer: []
+webhooks:
+  remoteDecision:
+    post:
+      operationId: deliverRemoteDecision
+      summary: 未来：向远程 Agent 的 /agent/v1/decide 投递任务
+      tags:
+      - ExternalAgent
+      x-implementation-status: future
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionRequest'
+      responses:
+        '202':
+          description: 接受后经平台动作 API 提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionAccepted'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+      - AgentBearer: []
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+        message:
+          type: string
+        retryable:
+          type: boolean
+        traceId:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true
+      required:
+      - code
+      - message
+      - retryable
+      - traceId
+      - details
+      additionalProperties: false
+    ExecutionMode:
+      type: string
+      enum:
+      - AUTO
+      - STEP
+    ExecutionStatus:
+      type: string
+      enum:
+      - PAUSED
+      - RUNNING
+      - PAUSING
+      - STOPPED
+    DecisionStatus:
+      type: string
+      enum:
+      - PENDING
+      - RUNNING
+      - COMPLETED
+      - FAILED
+      - EXPIRED
+      - CANCELLED
+    GameResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ONGOING
+          - WIN
+          - DRAW
+        winnerParticipantIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          uniqueItems: true
+        scores:
+          type: object
+          additionalProperties:
+            type: number
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - status
+      - winnerParticipantIds
+      - scores
+      - reason
+      additionalProperties: false
+    ParticipantView:
+      type: object
+      properties:
+        participantId:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        seatKey:
+          type: string
+      required:
+      - participantId
+      - agentId
+      - name
+      - seatKey
+      additionalProperties: false
+    MatchView:
+      type: object
+      properties:
+        matchId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        gameType:
+          type: string
+        gameRulesVersion:
+          type: string
+        status:
+          type: string
+          enum:
+          - READY
+          - ACTIVE
+          - FINISHED
+          - ABORTED
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        turnId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        turnNo:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        roundNo:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        currentParticipantId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipantView'
+        state:
+          type: object
+          additionalProperties: true
+        result:
+          $ref: '#/components/schemas/GameResult'
+        createdAt:
+          type: string
+          format: date-time
+        endedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+      required:
+      - matchId
+      - roomId
+      - gameType
+      - gameRulesVersion
+      - status
+      - stateVersion
+      - turnId
+      - turnNo
+      - roundNo
+      - currentParticipantId
+      - participants
+      - state
+      - result
+      - createdAt
+      - endedAt
+      additionalProperties: false
+      allOf:
+      - if:
+          properties:
+            gameType:
+              const: connect-four
+        then:
+          properties:
+            state:
+              $ref: '#/components/schemas/ConnectFourBoardView'
+    RoomView:
+      type: object
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        eventCursor:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        executionMode:
+          $ref: '#/components/schemas/ExecutionMode'
+        executionStatus:
+          $ref: '#/components/schemas/ExecutionStatus'
+        health:
+          type: string
+          enum:
+          - OK
+          - ERROR
+        healthError:
+          anyOf:
+          - type: string
+          - type: 'null'
+        currentMatch:
+          $ref: '#/components/schemas/MatchView'
+      required:
+      - roomId
+      - revision
+      - eventCursor
+      - executionMode
+      - executionStatus
+      - health
+      - healthError
+      - currentMatch
+      additionalProperties: false
+    ControlCommand:
+      type: object
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        expectedRoomRevision:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        expectedMatchId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - start
+          - pause
+          - continue
+          - step
+          - set_mode
+          - cancel_decision
+          - reset
+        mode:
+          $ref: '#/components/schemas/ExecutionMode'
+      required:
+      - commandId
+      - expectedRoomRevision
+      - expectedMatchId
+      - type
+      additionalProperties: false
+      allOf:
+      - if:
+          properties:
+            type:
+              const: set_mode
+        then:
+          required:
+          - mode
+        else:
+          not:
+            required:
+            - mode
+      examples:
+      - commandId: 10000000-0000-4000-8000-000000000001
+        expectedRoomRevision: 12
+        expectedMatchId: 20000000-0000-4000-8000-000000000001
+        type: step
+    CommandResult:
+      type: object
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        room:
+          $ref: '#/components/schemas/RoomView'
+      required:
+      - commandId
+      - room
+      additionalProperties: false
+    PromptDraft:
+      type: object
+      properties:
+        agentId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        content:
+          type: string
+          maxLength: 16384
+          description: 另限制 UTF-8 16 KiB
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - agentId
+      - revision
+      - content
+      - updatedAt
+      additionalProperties: false
+    DraftUpdate:
+      type: object
+      properties:
+        expectedDraftRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        content:
+          type: string
+          maxLength: 16384
+      required:
+      - expectedDraftRevision
+      - content
+      additionalProperties: false
+    PublishPrompt:
+      type: object
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        expectedRoomRevision:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        expectedMatchId:
+          type: string
+          format: uuid
+        expectedDraftRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - commandId
+      - expectedRoomRevision
+      - expectedMatchId
+      - expectedDraftRevision
+      additionalProperties: false
+    PromptVersion:
+      type: object
+      properties:
+        promptVersionId:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        versionNo:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        sourceDraftRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        content:
+          type: string
+          maxLength: 16384
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - promptVersionId
+      - agentId
+      - versionNo
+      - sourceDraftRevision
+      - content
+      - createdAt
+      additionalProperties: false
+    MemoryPolicy:
+      type: object
+      properties:
+        mode:
+          type: string
+          const: STATELESS
+      required:
+      - mode
+      additionalProperties: false
+    ModelConfiguration:
+      type: object
+      properties:
+        provider:
+          type: string
+          const: deepseek
+        modelId:
+          type: string
+          const: deepseek-flash
+        thinking:
+          type: boolean
+          const: false
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        maxOutputTokens:
+          type: integer
+          minimum: 1
+          maximum: 256
+        decisionTimeoutMs:
+          type: integer
+          const: 30000
+        outputStrategy:
+          type: string
+          enum:
+          - JSON_MODE
+          - STRICT_TOOL
+        allowBeta:
+          type: boolean
+          default: false
+      required:
+      - provider
+      - modelId
+      - thinking
+      - temperature
+      - maxOutputTokens
+      - decisionTimeoutMs
+      - outputStrategy
+      - allowBeta
+      additionalProperties: false
+      allOf:
+      - if:
+          properties:
+            outputStrategy:
+              const: STRICT_TOOL
+        then:
+          properties:
+            allowBeta:
+              const: true
+    AgentConfiguration:
+      type: object
+      properties:
+        configVersionId:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        versionNo:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        runtimeType:
+          type: string
+          enum:
+          - MOCK
+          - LLM
+        model:
+          $ref: '#/components/schemas/ModelConfiguration'
+        memoryPolicy:
+          $ref: '#/components/schemas/MemoryPolicy'
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - configVersionId
+      - agentId
+      - versionNo
+      - runtimeType
+      - model
+      - memoryPolicy
+      - createdAt
+      additionalProperties: false
+    ConfigUpdate:
+      type: object
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        expectedRoomRevision:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        expectedMatchId:
+          type: string
+          format: uuid
+        runtimeType:
+          type: string
+          enum:
+          - MOCK
+          - LLM
+        model:
+          $ref: '#/components/schemas/ModelConfiguration'
+        memoryPolicy:
+          $ref: '#/components/schemas/MemoryPolicy'
+      required:
+      - commandId
+      - expectedRoomRevision
+      - expectedMatchId
+      - runtimeType
+      - model
+      - memoryPolicy
+      additionalProperties: false
+    AgentView:
+      type: object
+      properties:
+        agentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        draft:
+          $ref: '#/components/schemas/PromptDraft'
+        publishedPrompt:
+          $ref: '#/components/schemas/PromptVersion'
+        configuration:
+          $ref: '#/components/schemas/AgentConfiguration'
+      required:
+      - agentId
+      - name
+      - draft
+      - publishedPrompt
+      - configuration
+      additionalProperties: false
+    ActionEnvelope:
+      type: object
+      properties:
+        protocolVersion:
+          type: string
+          const: '1.0'
+        matchId:
+          type: string
+          format: uuid
+        participantId:
+          type: string
+          format: uuid
+        turnId:
+          type: string
+          format: uuid
+        decisionId:
+          type: string
+          format: uuid
+        actionId:
+          type: string
+          format: uuid
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        action:
+          type: object
+          additionalProperties: true
+      required:
+      - protocolVersion
+      - matchId
+      - participantId
+      - turnId
+      - decisionId
+      - actionId
+      - stateVersion
+      - action
+      additionalProperties: false
+    ConnectFourAction:
+      type: object
+      properties:
+        type:
+          type: string
+          const: place_disc
+        column:
+          type: integer
+          minimum: 0
+          maximum: 6
+      required:
+      - type
+      - column
+      additionalProperties: false
+    ConnectFourEnvelope:
+      allOf:
+      - $ref: '#/components/schemas/ActionEnvelope'
+      - type: object
+        properties:
+          action:
+            $ref: '#/components/schemas/ConnectFourAction'
+      examples:
+      - protocolVersion: '1.0'
+        matchId: 20000000-0000-4000-8000-000000000001
+        participantId: 30000000-0000-4000-8000-000000000001
+        turnId: 40000000-0000-4000-8000-000000000001
+        decisionId: 50000000-0000-4000-8000-000000000001
+        actionId: 60000000-0000-4000-8000-000000000001
+        stateVersion: 0
+        action:
+          type: place_disc
+          column: 3
+    ActionSelection:
+      type: object
+      properties:
+        selectedActionId:
+          type: string
+          minLength: 1
+          maxLength: 64
+      required:
+      - selectedActionId
+      additionalProperties: false
+    RobotAction:
+      type: object
+      properties:
+        type:
+          type: string
+          const: move_and_attack
+        movement:
+          type: object
+          properties:
+            direction:
+              type: string
+              enum:
+              - north
+              - south
+              - east
+              - west
+            distance:
+              type: integer
+              minimum: 0
+              maximum: 2
+          required:
+          - direction
+          - distance
+          additionalProperties: false
+        attack:
+          type: object
+          properties:
+            targetId:
+              type: string
+              minLength: 1
+              maxLength: 80
+            weapon:
+              type: string
+              enum:
+              - laser
+          required:
+          - targetId
+          - weapon
+          additionalProperties: false
+      required:
+      - type
+      - movement
+      - attack
+      additionalProperties: false
+      description: 未来 Schema 示例；不注册为 MVP 游戏，动态规则尚待设计。
+      examples:
+      - type: move_and_attack
+        movement:
+          direction: north
+          distance: 2
+        attack:
+          targetId: robot_7
+          weapon: laser
+    ResourceTradeAction:
+      type: object
+      properties:
+        type:
+          type: string
+          const: trade
+        target:
+          type: string
+          format: uuid
+        offer:
+          type: object
+          properties:
+            food:
+              type: integer
+              minimum: 0
+              maximum: 100
+            ore:
+              type: integer
+              minimum: 0
+              maximum: 100
+          required:
+          - food
+          - ore
+          additionalProperties: false
+        request:
+          type: object
+          properties:
+            food:
+              type: integer
+              minimum: 0
+              maximum: 100
+            ore:
+              type: integer
+              minimum: 0
+              maximum: 100
+          required:
+          - food
+          - ore
+          additionalProperties: false
+      required:
+      - type
+      - target
+      - offer
+      - request
+      additionalProperties: false
+      description: 未来 Schema 示例；不注册为 MVP 游戏，动态规则尚待设计。
+      examples:
+      - type: trade
+        target: 30000000-0000-4000-8000-000000000001
+        offer:
+          food: 2
+          ore: 0
+        request:
+          food: 0
+          ore: 1
+    ActionSubmissionResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - EXECUTED
+          - REJECTED
+          - ACCEPTED
+        actionId:
+          type: string
+          format: uuid
+        decisionId:
+          type: string
+          format: uuid
+        matchId:
+          type: string
+          format: uuid
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        executedAction:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/Error'
+          - type: 'null'
+      required:
+      - status
+      - actionId
+      - decisionId
+      - matchId
+      - stateVersion
+      - executedAction
+      - error
+      additionalProperties: false
+      description: MVP 仅 EXECUTED/REJECTED；ACCEPTED 预留未来同时回合。
+      allOf:
+      - if:
+          properties:
+            status:
+              const: EXECUTED
+        then:
+          properties:
+            executedAction:
+              type: object
+            error:
+              type: 'null'
+      - if:
+          properties:
+            status:
+              const: REJECTED
+        then:
+          properties:
+            executedAction:
+              type: 'null'
+            error:
+              $ref: '#/components/schemas/Error'
+      - if:
+          properties:
+            status:
+              const: ACCEPTED
+        then:
+          properties:
+            executedAction:
+              type: 'null'
+            error:
+              type: 'null'
+    ActionSpecification:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+          - ACTION_SELECTION
+          - STRUCTURED_ACTION
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              selectedActionId:
+                type: string
+                minLength: 1
+              action:
+                type: object
+                additionalProperties: true
+            required:
+            - selectedActionId
+            - action
+            additionalProperties: false
+        constraints:
+          type: object
+          additionalProperties: true
+      required:
+      - mode
+      - options
+      - constraints
+      additionalProperties: false
+    DecisionRequest:
+      type: object
+      properties:
+        protocolVersion:
+          type: string
+          const: '1.0'
+        decisionId:
+          type: string
+          format: uuid
+        matchId:
+          type: string
+          format: uuid
+        participantId:
+          type: string
+          format: uuid
+        turnId:
+          type: string
+          format: uuid
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        observationVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        gameType:
+          type: string
+        gameRulesVersion:
+          type: string
+        actionSchemaId:
+          type: string
+        actionSchema:
+          type: object
+          additionalProperties: true
+        actionSpecification:
+          $ref: '#/components/schemas/ActionSpecification'
+        rulesText:
+          type: string
+        observation:
+          type: object
+          additionalProperties: true
+        deadlineAt:
+          type: string
+          format: date-time
+        agentVersion:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - protocolVersion
+      - decisionId
+      - matchId
+      - participantId
+      - turnId
+      - stateVersion
+      - observationVersion
+      - gameType
+      - gameRulesVersion
+      - actionSchemaId
+      - actionSchema
+      - actionSpecification
+      - rulesText
+      - observation
+      - deadlineAt
+      - agentVersion
+      additionalProperties: false
+      description: 外部合法观察契约；内部 Prompt/配置绑定另行装配，不上传凭据。
+      allOf:
+      - if:
+          properties:
+            gameType:
+              const: connect-four
+        then:
+          properties:
+            observation:
+              $ref: '#/components/schemas/ConnectFourObservation'
+    TokenUsage:
+      type: object
+      properties:
+        inputTokens:
+          anyOf:
+          - type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          - type: 'null'
+        outputTokens:
+          anyOf:
+          - type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          - type: 'null'
+        cacheHitTokens:
+          anyOf:
+          - type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          - type: 'null'
+        cacheMissTokens:
+          anyOf:
+          - type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          - type: 'null'
+      required:
+      - inputTokens
+      - outputTokens
+      - cacheHitTokens
+      - cacheMissTokens
+      additionalProperties: false
+    DecisionView:
+      type: object
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        matchId:
+          type: string
+          format: uuid
+        participantId:
+          type: string
+          format: uuid
+        turnId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/DecisionStatus'
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        observationVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        promptVersionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        configVersionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        startedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        deadlineAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        endedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        request:
+          anyOf:
+          - $ref: '#/components/schemas/DecisionRequest'
+          - type: 'null'
+        configurationSnapshot:
+          anyOf:
+          - $ref: '#/components/schemas/AgentConfiguration'
+          - type: 'null'
+        contextBuilderVersion:
+          anyOf:
+          - type: string
+          - type: 'null'
+        modelInput:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+        modelOutput:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+        parsedAction:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+        validationResult:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+        submissionResult:
+          anyOf:
+          - $ref: '#/components/schemas/ActionSubmissionResult'
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/Error'
+          - type: 'null'
+        usage:
+          anyOf:
+          - $ref: '#/components/schemas/TokenUsage'
+          - type: 'null'
+        latencyMs:
+          anyOf:
+          - type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          - type: 'null'
+      required:
+      - decisionId
+      - matchId
+      - participantId
+      - turnId
+      - status
+      - stateVersion
+      - observationVersion
+      - promptVersionId
+      - configVersionId
+      - startedAt
+      - deadlineAt
+      - endedAt
+      - request
+      - configurationSnapshot
+      - contextBuilderVersion
+      - modelInput
+      - modelOutput
+      - parsedAction
+      - validationResult
+      - submissionResult
+      - error
+      - usage
+      - latencyMs
+      additionalProperties: false
+    StateSnapshot:
+      type: object
+      properties:
+        matchId:
+          type: string
+          format: uuid
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        gameType:
+          type: string
+        gameRulesVersion:
+          type: string
+        state:
+          type: object
+          additionalProperties: true
+      required:
+      - matchId
+      - stateVersion
+      - gameType
+      - gameRulesVersion
+      - state
+      additionalProperties: false
+      allOf:
+      - if:
+          properties:
+            gameType:
+              const: connect-four
+        then:
+          properties:
+            state:
+              $ref: '#/components/schemas/ConnectFourBoardView'
+    ObservationView:
+      type: object
+      properties:
+        matchId:
+          type: string
+          format: uuid
+        participantId:
+          type: string
+          format: uuid
+        observationVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        observation:
+          type: object
+          additionalProperties: true
+      required:
+      - matchId
+      - participantId
+      - observationVersion
+      - observation
+      additionalProperties: false
+    ConnectFourBoardView:
+      type: object
+      properties:
+        board:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+              enum:
+              - EMPTY
+              - A
+              - B
+            minItems: 7
+            maxItems: 7
+          minItems: 6
+          maxItems: 6
+        moveCount:
+          type: integer
+          minimum: 0
+          maximum: 42
+        lastMove:
+          anyOf:
+          - type: object
+            properties:
+              row:
+                type: integer
+                minimum: 0
+                maximum: 5
+              column:
+                type: integer
+                minimum: 0
+                maximum: 6
+              seat:
+                type: string
+                enum:
+                - A
+                - B
+            required:
+            - row
+            - column
+            - seat
+            additionalProperties: false
+          - type: 'null'
+        winningCells:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+                minimum: 0
+                maximum: 5
+              column:
+                type: integer
+                minimum: 0
+                maximum: 6
+            required:
+            - row
+            - column
+            additionalProperties: false
+      required:
+      - board
+      - moveCount
+      - lastMove
+      - winningCells
+      additionalProperties: false
+    ConnectFourObservation:
+      type: object
+      properties:
+        board:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+              enum:
+              - EMPTY
+              - A
+              - B
+            minItems: 7
+            maxItems: 7
+          minItems: 6
+          maxItems: 6
+        yourSeat:
+          type: string
+          enum:
+          - A
+          - B
+        currentSeat:
+          anyOf:
+          - type: string
+            enum:
+            - A
+            - B
+          - type: 'null'
+        legalColumns:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          uniqueItems: true
+        moveCount:
+          type: integer
+          minimum: 0
+          maximum: 42
+      required:
+      - board
+      - yourSeat
+      - currentSeat
+      - legalColumns
+      - moveCount
+      additionalProperties: false
+    GameEvent:
+      type: object
+      properties:
+        matchId:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        stateVersion:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        decisionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        type:
+          type: string
+          enum:
+          - MatchInitialized
+          - DiscPlaced
+          - MatchFinished
+        eventVersion:
+          type: integer
+          const: 1
+        payload:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+      required:
+      - matchId
+      - sequence
+      - stateVersion
+      - decisionId
+      - type
+      - eventVersion
+      - payload
+      - occurredAt
+      additionalProperties: false
+    RoomEvent:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        roomId:
+          type: string
+          format: uuid
+        matchId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        roomRevision:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        type:
+          type: string
+          enum:
+          - ROOM_INITIALIZED
+          - MATCH_RESET
+          - EXECUTION_CHANGED
+          - PROMPT_PUBLISHED
+          - CONFIGURATION_PUBLISHED
+          - DECISION_STARTED
+          - DECISION_FINISHED
+          - ACTION_RESOLVED
+          - MATCH_FINISHED
+          - SERVER_RECOVERED
+          - ROOM_UNAVAILABLE
+        occurredAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+      required:
+      - sequence
+      - roomId
+      - matchId
+      - roomRevision
+      - type
+      - occurredAt
+      - payload
+      additionalProperties: false
+    MatchPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchView'
+        nextCursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - items
+      - nextCursor
+      additionalProperties: false
+    PromptVersionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVersion'
+        nextCursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - items
+      - nextCursor
+      additionalProperties: false
+    DecisionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionView'
+        nextCursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - items
+      - nextCursor
+      additionalProperties: false
+    GameEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameEvent'
+        nextAfter:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        hasMore:
+          type: boolean
+      required:
+      - items
+      - nextAfter
+      - hasMore
+      additionalProperties: false
+    ClaimRequest:
+      type: object
+      properties:
+        protocolVersion:
+          type: string
+          const: '1.0'
+        participantId:
+          type: string
+          format: uuid
+        workerId:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required:
+      - protocolVersion
+      - participantId
+      - workerId
+      additionalProperties: false
+    DecisionAccepted:
+      type: object
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        accepted:
+          type: boolean
+          const: true
+      required:
+      - decisionId
+      - accepted
+      additionalProperties: false
+    ExternalDecisionView:
+      type: object
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/DecisionStatus'
+        actionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/Error'
+          - type: 'null'
+      required:
+      - decisionId
+      - status
+      - actionId
+      - error
+      additionalProperties: false
+  parameters:
+    roomId:
+      name: roomId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    matchId:
+      name: matchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    agentId:
+      name: agentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    participantId:
+      name: participantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    decisionId:
+      name: decisionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    actionId:
+      name: actionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    stateVersion:
+      name: stateVersion
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 9007199254740991
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: 服务端返回的不透明分页游标。
+    after:
+      name: after
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 9007199254740991
+        default: 0
+    lastEventId:
+      name: Last-Event-ID
+      in: header
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+      description: 优先于 after。
+    LaboratoryClient:
+      name: X-Frayground-Client
+      in: header
+      required: true
+      schema:
+        type: string
+        const: laboratory
+      description: 本机管理面跨站防护标记，不是身份凭证。
+  responses:
+    Error:
+      description: 统一错误；retryable 不授权重新调用模型。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: 限流，不触发模型重新生成。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: 至少等待秒数
+  examples:
+    StepCommand:
+      summary: ControlCommand 示例
+      value:
+        commandId: 10000000-0000-4000-8000-000000000001
+        expectedRoomRevision: 12
+        expectedMatchId: 20000000-0000-4000-8000-000000000001
+        type: step
+      x-schema: ControlCommand
+    StepModeCommand:
+      summary: ControlCommand 示例
+      value:
+        commandId: 10000000-0000-4000-8000-000000000001
+        expectedRoomRevision: 12
+        expectedMatchId: 20000000-0000-4000-8000-000000000001
+        type: set_mode
+        mode: STEP
+      x-schema: ControlCommand
+    Action:
+      summary: ConnectFourEnvelope 示例
+      value:
+        protocolVersion: '1.0'
+        matchId: 20000000-0000-4000-8000-000000000001
+        participantId: 30000000-0000-4000-8000-000000000001
+        turnId: 40000000-0000-4000-8000-000000000001
+        decisionId: 50000000-0000-4000-8000-000000000001
+        actionId: 60000000-0000-4000-8000-000000000001
+        stateVersion: 0
+        action:
+          type: place_disc
+          column: 3
+      x-schema: ConnectFourEnvelope
+    Selection:
+      summary: ActionSelection 示例
+      value:
+        selectedActionId: c3
+      x-schema: ActionSelection
+    Executed:
+      summary: ActionSubmissionResult 示例
+      value:
+        status: EXECUTED
+        actionId: 60000000-0000-4000-8000-000000000001
+        decisionId: 50000000-0000-4000-8000-000000000001
+        matchId: 20000000-0000-4000-8000-000000000001
+        stateVersion: 1
+        executedAction:
+          type: place_disc
+          column: 3
+        error: null
+      x-schema: ActionSubmissionResult
+    Busy:
+      summary: Error 示例
+      value:
+        code: CONTROL_BUSY
+        message: 当前决策尚未结束，未增加单步许可。
+        retryable: false
+        traceId: 70000000-0000-4000-8000-000000000001
+        details:
+          decisionId: 50000000-0000-4000-8000-000000000001
+      x-schema: Error
+    Observation:
+      summary: ConnectFourObservation 示例
+      value:
+        board:
+        - - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+        - - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+        - - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+        - - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+        - - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+        - - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+          - EMPTY
+        yourSeat: A
+        currentSeat: A
+        legalColumns:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        moveCount: 0
+      x-schema: ConnectFourObservation
+    Robot:
+      summary: RobotAction 示例
+      value:
+        type: move_and_attack
+        movement:
+          direction: north
+          distance: 2
+        attack:
+          targetId: robot_7
+          weapon: laser
+      x-schema: RobotAction
+    ResourceTrade:
+      summary: ResourceTradeAction 示例
+      value:
+        type: trade
+        target: 30000000-0000-4000-8000-000000000001
+        offer:
+          food: 2
+          ore: 0
+        request:
+          food: 0
+          ore: 1
+      x-schema: ResourceTradeAction
+    Event:
+      summary: RoomEvent 示例
+      value:
+        sequence: 24
+        roomId: 00000000-0000-4000-8000-000000000031
+        matchId: 20000000-0000-4000-8000-000000000001
+        roomRevision: 18
+        type: ACTION_RESOLVED
+        occurredAt: '2026-10-19T08:00:00Z'
+        payload:
+          stateVersion: 1
+          decisionId: 50000000-0000-4000-8000-000000000001
+      x-schema: RoomEvent
+    Decision:
+      summary: DecisionRequest 示例
+      value:
+        protocolVersion: '1.0'
+        decisionId: 50000000-0000-4000-8000-000000000001
+        matchId: 20000000-0000-4000-8000-000000000001
+        participantId: 30000000-0000-4000-8000-000000000001
+        turnId: 40000000-0000-4000-8000-000000000001
+        stateVersion: 0
+        observationVersion: 0
+        gameType: connect-four
+        gameRulesVersion: '1'
+        actionSchemaId: connect-four/place-disc/1
+        actionSchema:
+          $schema: https://json-schema.org/draft/2020-12/schema
+          type: object
+          properties:
+            type:
+              type: string
+              const: place_disc
+            column:
+              type: integer
+              minimum: 0
+              maximum: 6
+          required:
+          - type
+          - column
+          additionalProperties: false
+        actionSpecification:
+          mode: ACTION_SELECTION
+          options:
+          - selectedActionId: c0
+            action:
+              type: place_disc
+              column: 0
+          - selectedActionId: c1
+            action:
+              type: place_disc
+              column: 1
+          - selectedActionId: c2
+            action:
+              type: place_disc
+              column: 2
+          - selectedActionId: c3
+            action:
+              type: place_disc
+              column: 3
+          - selectedActionId: c4
+            action:
+              type: place_disc
+              column: 4
+          - selectedActionId: c5
+            action:
+              type: place_disc
+              column: 5
+          - selectedActionId: c6
+            action:
+              type: place_disc
+              column: 6
+          constraints: {}
+        rulesText: 7 列 6 行；重力落子；横竖斜四子连线获胜。
+        observation:
+          board:
+          - - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+          - - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+          - - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+          - - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+          - - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+          - - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+            - EMPTY
+          yourSeat: A
+          currentSeat: A
+          legalColumns:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          moveCount: 0
+        deadlineAt: '2026-10-19T08:00:30Z'
+        agentVersion: null
+      x-schema: DecisionRequest
+    Room:
+      summary: RoomView 示例
+      value:
+        roomId: 00000000-0000-4000-8000-000000000031
+        revision: 1
+        eventCursor: 1
+        executionMode: STEP
+        executionStatus: PAUSED
+        health: OK
+        healthError: null
+        currentMatch:
+          matchId: 20000000-0000-4000-8000-000000000001
+          roomId: 00000000-0000-4000-8000-000000000031
+          gameType: connect-four
+          gameRulesVersion: '1'
+          status: READY
+          stateVersion: 0
+          turnId: 40000000-0000-4000-8000-000000000001
+          turnNo: 1
+          roundNo: 1
+          currentParticipantId: 30000000-0000-4000-8000-000000000001
+          participants:
+          - participantId: 30000000-0000-4000-8000-000000000001
+            agentId: 00000000-0000-4000-8000-000000000001
+            name: Agent A
+            seatKey: A
+          - participantId: 30000000-0000-4000-8000-000000000002
+            agentId: 00000000-0000-4000-8000-000000000002
+            name: Agent B
+            seatKey: B
+          state:
+            board:
+            - - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+            - - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+            - - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+            - - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+            - - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+            - - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+              - EMPTY
+            moveCount: 0
+            lastMove: null
+            winningCells: []
+          result:
+            status: ONGOING
+            winnerParticipantIds: []
+            scores: {}
+            reason: null
+          createdAt: '2026-10-19T08:00:00Z'
+          endedAt: null
+      x-schema: RoomView
+    CommandAck:
+      summary: CommandResult 示例
+      value:
+        commandId: 10000000-0000-4000-8000-000000000001
+        room:
+          roomId: 00000000-0000-4000-8000-000000000031
+          revision: 2
+          eventCursor: 2
+          executionMode: STEP
+          executionStatus: RUNNING
+          health: OK
+          healthError: null
+          currentMatch:
+            matchId: 20000000-0000-4000-8000-000000000001
+            roomId: 00000000-0000-4000-8000-000000000031
+            gameType: connect-four
+            gameRulesVersion: '1'
+            status: ACTIVE
+            stateVersion: 0
+            turnId: 40000000-0000-4000-8000-000000000001
+            turnNo: 1
+            roundNo: 1
+            currentParticipantId: 30000000-0000-4000-8000-000000000001
+            participants:
+            - participantId: 30000000-0000-4000-8000-000000000001
+              agentId: 00000000-0000-4000-8000-000000000001
+              name: Agent A
+              seatKey: A
+            - participantId: 30000000-0000-4000-8000-000000000002
+              agentId: 00000000-0000-4000-8000-000000000002
+              name: Agent B
+              seatKey: B
+            state:
+              board:
+              - - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+              - - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+              - - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+              - - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+              - - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+              - - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+                - EMPTY
+              moveCount: 0
+              lastMove: null
+              winningCells: []
+            result:
+              status: ONGOING
+              winnerParticipantIds: []
+              scores: {}
+              reason: null
+            createdAt: '2026-10-19T08:00:00Z'
+            endedAt: null
+      x-schema: CommandResult
+    Agent:
+      summary: AgentView 示例
+      value:
+        agentId: 00000000-0000-4000-8000-000000000001
+        name: Agent A
+        draft:
+          agentId: 00000000-0000-4000-8000-000000000001
+          revision: 1
+          content: 根据当前观察和合法动作选择行动；只返回要求的 JSON。
+          updatedAt: '2026-10-19T08:00:00Z'
+        publishedPrompt:
+          promptVersionId: 00000000-0000-4000-8000-000000000011
+          agentId: 00000000-0000-4000-8000-000000000001
+          versionNo: 1
+          sourceDraftRevision: 1
+          content: 根据当前观察和合法动作选择行动；只返回要求的 JSON。
+          createdAt: '2026-10-19T08:00:00Z'
+        configuration:
+          configVersionId: 00000000-0000-4000-8000-000000000021
+          agentId: 00000000-0000-4000-8000-000000000001
+          versionNo: 1
+          runtimeType: MOCK
+          model:
+            provider: deepseek
+            modelId: deepseek-flash
+            thinking: false
+            temperature: 0
+            maxOutputTokens: 256
+            decisionTimeoutMs: 30000
+            outputStrategy: JSON_MODE
+            allowBeta: false
+          memoryPolicy:
+            mode: STATELESS
+          createdAt: '2026-10-19T08:00:00Z'
+      x-schema: AgentView
+    ConfigUpdate:
+      summary: ConfigUpdate 示例
+      value:
+        commandId: 10000000-0000-4000-8000-000000000001
+        expectedRoomRevision: 12
+        expectedMatchId: 20000000-0000-4000-8000-000000000001
+        runtimeType: LLM
+        model:
+          provider: deepseek
+          modelId: deepseek-flash
+          thinking: false
+          temperature: 0
+          maxOutputTokens: 256
+          decisionTimeoutMs: 30000
+          outputStrategy: JSON_MODE
+          allowBeta: false
+        memoryPolicy:
+          mode: STATELESS
+      x-schema: ConfigUpdate
+    PromptPublished:
+      summary: PromptVersion 示例
+      value:
+        promptVersionId: 00000000-0000-4000-8000-000000000011
+        agentId: 00000000-0000-4000-8000-000000000001
+        versionNo: 1
+        sourceDraftRevision: 1
+        content: 根据当前观察和合法动作选择行动；只返回要求的 JSON。
+        createdAt: '2026-10-19T08:00:00Z'
+      x-schema: PromptVersion
+    Rejected:
+      summary: ActionSubmissionResult 示例
+      value:
+        status: REJECTED
+        actionId: 60000000-0000-4000-8000-000000000001
+        decisionId: 50000000-0000-4000-8000-000000000001
+        matchId: 20000000-0000-4000-8000-000000000001
+        stateVersion: 0
+        executedAction: null
+        error:
+          code: ILLEGAL_ACTION
+          message: 当前列已满，动作未执行。
+          retryable: false
+          traceId: 70000000-0000-4000-8000-000000000001
+          details:
+            column: 3
+      x-schema: ActionSubmissionResult
+    DiscPlaced:
+      summary: GameEvent 示例
+      value:
+        matchId: 20000000-0000-4000-8000-000000000001
+        sequence: 2
+        stateVersion: 1
+        decisionId: 50000000-0000-4000-8000-000000000001
+        type: DiscPlaced
+        eventVersion: 1
+        payload:
+          row: 5
+          column: 3
+          seat: A
+          participantId: 30000000-0000-4000-8000-000000000001
+        occurredAt: '2026-10-19T08:00:00Z'
+      x-schema: GameEvent
+  securitySchemes:
+    AgentBearer:
+      type: http
+      scheme: bearer
+      description: 未来授权占位，不是 Decision ID；发放和权限体系未实现。

@@ -18,7 +18,7 @@ Frayground 是一个面向 AI Agent 的开放式游戏与互动平台。玩家�
 - Agent 提交结构化动作，服务端校验并更新权威状态。
 - 保留必要过程记录，帮助玩家理解行为并调整策略。
 
-技术偏好为 Java / Spring Boot、React / TypeScript 和模块化单体。DeepSeek 可作为候选默认模型，平台不绑定单一供应商。
+当前设计采用 Java 21 / Spring Boot 4、MyBatis-Plus、MySQL 8.4 LTS、React / TypeScript 和模块化单体。MVP 默认模型选用 DeepSeek Flash，通过适配器隔离，平台不绑定单一供应商。
 
 ## 长期方向
 
@@ -30,5 +30,10 @@ Frayground 是一个面向 AI Agent 的开放式游戏与互动平台。玩家�
 
 - [项目纲领](docs/PROJECT_CHARTER.md)：使命、愿景、产品原则、概念、MVP 范围与待验证假设，是理解项目的主要入口。
 - [编码协作说明](AGENTS.md)：开发前阅读顺序、实现边界及重大变更处理方式。
+- [MVP 产品范围与验收](docs/01-product-scope.md)：使用流程、已确认边界与默认行为。
+- [系统架构](docs/02-architecture.md) · [领域与状态机](docs/03-domain-model.md) · [API 规范](docs/04-api-specification.md) · [OpenAPI](docs/openapi.yaml)。
+- [MySQL 持久化与完整 SQL 草案](docs/05-persistence.md)：MyBatis-Plus、事务、幂等、空数据卷初始化；不使用自动迁移框架。
+- [前端设计](docs/06-frontend.md) · [测试策略](docs/07-testing.md) · [分阶段实施计划](docs/08-implementation-plan.md)。
+- [ADR 与架构审查](docs/09-architecture-decisions.md) · [参考项目研究](docs/10-reference-projects.md) · [Agent 协议与记忆](docs/10-agent-protocol-and-memory.md)。
 
-当前没有安装、运行或部署步骤；相关说明将在存在可验证的实现后补充。开始开发前，请先阅读项目纲领，再核对任务范围与开放问题。
+当前已交付架构设计与接口契约，尚未生成业务代码，也没有可执行的安装、运行或部署步骤。文档中的 SQL、Java 和配置均为后续实现草案，不代表已经运行验证。下一轮从分阶段实施计划开始，先阅读项目纲领，再核对范围与开放问题。
