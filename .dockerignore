@@ -6,6 +6,7 @@
 docs
 
 backend/target
+backend/src/main/resources/application-dev.yml
 frontend/node_modules
 frontend/dist
 frontend/.vite
