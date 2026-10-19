@@ -8,7 +8,30 @@ Frayground 是一个面向 AI Agent 的开放式游戏与互动平台。玩家�
 
 ## 当前阶段
 
-项目处于初始化与 MVP 验证准备阶段，当前交付为项目文档，尚未实现可运行的游戏产品。以下内容描述第一版目标，不代表现有功能。
+`develop` 已落地前后端脚手架与联合镜像。实验室对局、调度、持久化接入尚未实现。以下第一版目标描述产品范围，不代表现有功能。
+
+## 运行
+
+需要 Temurin JDK 21、Node 24、Docker。本机未安装系统 Maven，后端使用 Wrapper。
+
+分开开发：
+
+```bash
+cd backend && ./mvnw spring-boot:run
+cd frontend && npm install && npm run dev
+```
+
+前端开发服务器 `http://127.0.0.1:5173`，将 `/api` 代理到 `127.0.0.1:8080`。
+
+联合镜像（Spring 内嵌 Tomcat 托管前端产物，监听映射到 loopback）：
+
+```bash
+docker compose up --build
+```
+
+浏览器打开 `http://127.0.0.1:8080`。容器内 `SERVER_ADDRESS=0.0.0.0`，宿主机只绑定 `127.0.0.1:8080`。
+
+应用 `spring.sql.init.mode=never`，不执行 `schema.sql` / `data.sql`。MySQL 服务尚未加入 Compose。
 
 ## 第一版目标
 
@@ -36,4 +59,4 @@ Frayground 是一个面向 AI Agent 的开放式游戏与互动平台。玩家�
 - [前端设计](docs/06-frontend.md) · [测试策略](docs/07-testing.md) · [分阶段实施计划](docs/08-implementation-plan.md)。
 - [ADR 与架构审查](docs/09-architecture-decisions.md) · [参考项目研究](docs/10-reference-projects.md) · [Agent 协议与记忆](docs/10-agent-protocol-and-memory.md)。
 
-当前已交付架构设计与接口契约，尚未生成业务代码，也没有可执行的安装、运行或部署步骤。文档中的 SQL、Java 和配置均为后续实现草案，不代表已经运行验证。下一轮从分阶段实施计划开始，先阅读项目纲领，再核对范围与开放问题。
+当前可启动骨架与 SQL 文件已入库；对局、API 与数据库接入仍按[分阶段实施计划](docs/08-implementation-plan.md)推进。先阅读项目纲领，再核对范围与开放问题。

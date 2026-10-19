@@ -7,7 +7,7 @@
 - 后端单 Maven 工程 `backend/`，根包 io.frayground；前端 `frontend/`。不提前创建空模块、远程 SDK 或第二款产品游戏。
 - OpenAPI 是 HTTP DTO 的来源；Java 领域以纯类型表达规则，Mapper Entity/DTO 分离。新增接口不得自行更改控制语义。
 - 每阶段完成相关测试与文档同步后再推进；失败先报告阻塞点，不通过削减范围或伪造结果验收。
-- 命令示例均为未来实现后预期提供，当前仓库不能执行 `./mvnw test` 或 npm 脚本。阶段一确定并记录实际验证的运行命令。
+- 骨架命令：`backend` 下 `./mvnw test`、`frontend` 下 `npm install` / `npm run build`、根目录 `docker compose up --build`。业务 API、MySQL 与实验室页面仍未实现。
 - 所有数据库变更同步完整 schema.sql/data.sql；只在空数据卷初始化，无 Flyway/Liquibase，已有库改动人工审阅执行。
 
 ## 2. 阶段依赖
@@ -30,13 +30,13 @@ flowchart LR
 
 **前置：**已确认设计；联网下载/容器使用获得所需授权。
 
-**文件与模块：**根 `compose.yaml`、`.gitignore`、环境变量示例；`backend/pom.xml`、Maven Wrapper、Application、application.yml；`backend/src/main/resources/db/schema.sql`、`data.sql`；不创建业务空类。
+**文件与模块：**根 `Dockerfile`、`compose.yaml`（默认文件名，不必 `-f`）、`.gitignore`、`.dockerignore`；`backend/pom.xml`、Maven Wrapper、Application、application.yml、`src/main/resources/static/`；`frontend/` Vite 占位；`backend/src/main/resources/db/schema.sql`、`data.sql`；不创建业务空类。
 
 **内容与接口：**Java 21、Boot 4.1.1、MyBatis-Plus 3.5.17 Boot4 starter；JUnit6/Testcontainers2；Jackson3/Validator3。核验 MySQL 8.4 精确镜像补丁/摘要、JDBC 驱动和 JSON TypeHandler 依赖。应用 `spring.sql.init.mode=never`，显式 UTC、utf8mb4 和 loopback。Compose 挂载正式两份 SQL，只有首次空卷执行；种子两 Agent/初始 Prompt/Mock 配置/单 Room，无伪造比赛历史。
 
 **测试/集成：**数据库临时容器执行完整两脚本、关键表/生成列/外键存在；同卷重启不会重放；应用不执行 SQL、不覆盖人工修改。依赖树不能混入 Boot3 starter 或意外 Jackson2 TypeHandler。
 
-**完成：**骨架可编译启动并连接临时数据库；所选版本和实际运行命令写入 README；本机缺环境明确报告，不自行大范围换栈。
+**完成：**骨架可编译启动；所选版本和实际运行命令写入 README；本机缺环境明确报告，不自行大范围换栈。MySQL 服务、MyBatis-Plus 与空卷初始化仍待本阶段后半完成。
 
 ## 4. 阶段二：领域与游戏规则
 
