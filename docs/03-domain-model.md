@@ -95,13 +95,13 @@ public interface ActionValidator<S, A> {
 }
 public record ActionEnvelope(String protocolVersion, UUID matchId,
     UUID participantId, UUID turnId, UUID decisionId, UUID actionId,
-    long stateVersion, JsonNode action) {}
+    long stateVersion, Map<String, Object> action) {}
 public interface ActionSubmitter {
     CompletionStage<ActionSubmissionResult> submit(ActionEnvelope envelope);
 }
 ```
 
-ActionParser 可由 Codec 实现，ActionValidator 可由 GameDefinition 实现，不要求各建一个实现类。ActionSchemaProvider 属协议适配模块；ActionSpecification 只通过稳定 schemaId 关联外部 Schema。Registry 是显式白名单，不开启 Jackson default typing 或按外部类名加载。
+ActionParser 可由 Codec 实现，ActionValidator 可由 GameDefinition 实现，不要求各建一个实现类。ActionSchemaProvider 属协议适配模块；ActionSpecification 只通过稳定 schemaId 关联外部 Schema。Registry 是显式白名单，不开启 Jackson default typing 或按外部类名加载。领域记录中的 `action` 是 `Map`，不依赖 JSON 库。`ActionSubmissionResult.errorCode` 是提交错误码；HTTP `Error` 对象在 API 边界组装。`EXECUTED` 带已执行动作且没有错误码，`REJECTED` 相反，`ACCEPTED` 两者都为空。
 
 GameResult 为 `ONGOING/WIN/DRAW`，用 standings 表示名次。ParticipantStanding.rank 从 1 起，相同名次为并列，rank 1 为胜者；score 可选。WIN 至少包含一个 rank 1。参与者数量不固定，因此同一结果可表达 1v1、多人混战和完整排名。DRAW 不要求胜者。Match 的 ABORTED 是运行终止，不伪造成某方获胜。
 
