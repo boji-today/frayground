@@ -72,7 +72,7 @@ flowchart LR
 
 **文件与模块：**`engine/TurnScheduler`、GameEngine、RoomCommandQueue、DecisionLifecycle；`agent/AgentRunner`、AgentRuntime、MockAgentRuntime、CancellationSignal；`application/ActionSubmissionService`、RecoveryService。
 
-**核心接口：**scheduleTick、handleCommand、startDecision、submit、fail/expire/cancel、recoverBeforeReady。
+**核心接口：**scheduleTick、handleCommand、start、submit、fail/expire/cancel、recoverBeforeReady。
 
 **内容：**实现 AUTO/STEP 与状态分离；PENDING/RUNNING 绑定点；30 秒服务端期限；单步无累积；决策边界暂停；独立中止；重置旧局隔离；原子结算与回执；提交后另排 tick；恢复取消未完成决策并暂停。
 

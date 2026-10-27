@@ -53,6 +53,33 @@ flowchart LR
 | adapter.persistence | MyBatis-Plus Entity/Mapper/JSON TypeHandler、锁与 CAS | 泄漏持久化对象到前端 |
 | web | DTO、参数校验、错误映射、实验室 SSE | 暴露审计记录给任意 Agent |
 
+engine 的当前契约：
+
+```java
+public interface TurnScheduler {
+    void scheduleTick(UUID roomId, UUID expectedMatchId, String reason);
+    CommandResult handleCommand(UUID roomId, ControlCommand command);
+    void recoverBeforeReady();
+}
+public interface DecisionLifecycle {
+    StartedDecision start(UUID roomId);
+    void fail(UUID decisionId, String errorCode);
+    void expire(UUID decisionId);
+    void cancel(UUID roomId, UUID commandId);
+}
+public record StartedDecision(UUID roomId, UUID matchId, UUID decisionId,
+    UUID participantId, UUID turnId, UUID promptVersionId, UUID configVersionId,
+    long stateVersion, long observationVersion, String observationJson,
+    String actionSpecificationJson, Instant deadline) {}
+public interface GameEngine {
+    <S extends GameState, A extends GameAction, O extends GameObservation>
+        Resolution<S> apply(GameDefinition<S, A, O> definition,
+            S state, Map<UUID, A> phaseActions);
+}
+```
+
+`scheduleTick` 只在 `expectedMatchId` 仍是当前对局时排队。`start` 在 Room 锁内绑定 Prompt、配置、观察和期限，返回 `StartedDecision`；观察与动作说明是 JSON 字符串。`deadline` 是服务端到期时刻。`apply` 只对一个阶段已经给出的动作调用规则，顺序阶段一条、同时阶段多条，不选择动作也不落库。`fail`、`expire`、`cancel` 结束决策且不推进 `stateVersion`；`cancel` 覆盖当前回合全部未完成决策。`recoverBeforeReady` 在实例接单前取消未完成决策并保持暂停。
+
 GameDefinition 在应用装配中注册 `(gameType, gameRulesVersion)` 与专属 Codec。JSON Schema、类型反序列化和快照 Codec 跟随注册项，纯规则层只接收强类型。缺少历史规则 Codec 时恢复该房间为故障暂停，不能用最新版静默解释旧数据。
 
 ## 3. 一次决策的分段数据流
