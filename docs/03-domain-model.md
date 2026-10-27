@@ -23,7 +23,8 @@
 | PromptVersion | promptVersionId + versionNo | 不可变发布内容，与单个 Match 无绑定 |
 | AgentConfig | configVersionId + versionNo | 不可变 Runtime/模型/MemoryPolicy 配置快照；Agent 指针指向最新版 |
 | DecisionRecord | decisionId | 输入、上下文构造版本、模型动作输出、校验、执行回执、错误及用量 |
-| GameEvent | matchId + sequence | 游戏客观事实，不等同于模型意图或完整审计 |
+| GameEventDraft | 一次规则结算的产出 | type、eventVersion、payload；不含对局身份与序号 |
+| GameEvent | matchId + sequence | 已记录的游戏客观事实，不等同于模型意图或完整审计 |
 | RoomEvent | roomId + sequence | 管理面持久化推送事件，包括控制/配置/决策/世界变化 |
 
 Round 表示游戏自己的大轮次；Turn/Phase 表示一次行动收集与结算阶段；Decision 表示某个席位的一次尝试；Action 是提交内容。MVP turnId 即阶段 ID，不再增加重复 phaseId 字段；四子棋 turnNo 从 1 开始，roundNo = floor((turnNo-1)/2)+1。失败不增加 turnNo/stateVersion；成功落子后创建下一 Turn。一次阶段结算无论包含一条还是多条动作，都只递增一次 stateVersion。
@@ -74,7 +75,9 @@ public record ActionSpecification<A>(ActionGenerationMode mode,
     String actionSchemaId, List<ActionOption<A>> options,
     Map<String, Object> constraints) {}
 public record TurnPlan(SchedulingMode mode, List<UUID> requiredParticipants) {}
-public record Resolution<S>(S newState, List<GameEvent> events,
+public record GameEventDraft(String type, int eventVersion,
+    Map<String, Object> payload) {}
+public record Resolution<S>(S newState, List<GameEventDraft> events,
     GameResult result) {}
 
 // JSON 和游戏专用类型在注册边界连接，不传入规则方法。
@@ -106,7 +109,7 @@ TURN_BASED_SEQUENTIAL 的 requiredParticipants 只有一名；TURN_BASED_SIMULTA
 
 过和认输都是 action 载荷中的游戏动作，不是 TurnStatus。ActionEnvelope 只携带身份、版本和载荷，不定义效果；效果由 GameDefinition 的 validate / resolve 决定。游戏定义了该动作且校验通过后，回执为 EXECUTED，回合变为 RESOLVED，整个阶段 stateVersion 加一。过通常使对局保持 ONGOING，再由 nextTurn 给出下一阶段。认输由规则给出终局 GameResult，Match 变为 FINISHED；它不是 ABORTED，也不是 CANCELLED。cancel_decision、reset 和中止仍只把未结算阶段标为 CANCELLED，不推进 stateVersion。某游戏未定义该动作时按规则拒绝。
 
-规则产生可重放的事实；若未来有随机性，应在规则输入中显式传入已记录的随机事件/种子与算法版本，不在纯规则内部读取时钟或随机源。
+规则结算产出 `GameEventDraft`。写入时补上 `matchId`、`sequence`、`stateVersion`、可空的 `decisionId` 和发生时间，成为 `GameEvent`。`visibleHistory` 读取的是已记录事件，并按席位省略不可见事实。若未来有随机性，应在规则输入中显式传入已记录的随机事件、种子与算法版本，不在纯规则内部读取时钟或随机源。
 
 ## 3. Match 与执行状态
 
