@@ -70,7 +70,7 @@ flowchart LR
 
 **前置：**阶段二规则、阶段三事务基础。
 
-**文件与模块：**`engine/TurnScheduler`、GameEngine、RoomCommandQueue、DecisionLifecycle；`agent/AgentRunner`、AgentRuntime、MockAgentRuntime、CancellationSignal；`application/ActionSubmissionService`、RecoveryService。
+**文件与模块：**`engine/TurnScheduler`、GameEngine、RoomCommandQueue、DecisionLifecycle；`agent/AgentRunner`、AgentRuntime、MockAgentRuntime、CancellationSignal；`application/ActionSubmitter`、RecoveryService。
 
 **核心接口：**scheduleTick、handleCommand、start、submit、fail/expire/cancel、recoverBeforeReady。
 

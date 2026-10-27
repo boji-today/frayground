@@ -112,6 +112,16 @@ sequenceDiagram
 
 ## 4. Prompt、控制与恢复
 
+```java
+public record PublishPrompt(UUID commandId, long expectedRoomRevision,
+    UUID expectedMatchId, long expectedDraftRevision) {}
+public interface PromptPublisher {
+    PromptVersion publish(UUID roomId, UUID agentId, PublishPrompt command);
+}
+```
+
+发布只接受 `expectedDraftRevision`，不另传正文。相同 `commandId` 返回原版本；相同草稿内容的新命令仍发布新版本。新版本从下一次尚未开始的决策生效。
+
 ```mermaid
 sequenceDiagram
   participant U as 操作者
