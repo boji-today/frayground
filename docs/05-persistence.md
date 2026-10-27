@@ -304,6 +304,45 @@ COMMIT;
 
 所有变更先进入房间串行入口，事务统一锁顺序 Room → Match → Agent（按 ID 排序）→ Turn/Decision → 回执/结算及其他子表。隔离级别 READ COMMITTED，按主键锁行；死锁或连接失败只重试整个短事务，最多一次，不重发模型调用。若重试仍失败，返回服务故障，调度停止等待恢复。
 
+```java
+public record LockedRoom(UUID roomId, long revision, long eventSeq,
+    UUID activeMatchId, ExecutionMode executionMode,
+    ExecutionStatus executionStatus, RoomHealth health, String healthError) {}
+public interface RoomRepository {
+    LockedRoom lock(UUID roomId);
+}
+public interface MatchRepository {
+    boolean compareAndSetVersion(UUID matchId, long expected, long next);
+}
+public interface DecisionRepository {
+    boolean transition(UUID decisionId, DecisionStatus from, DecisionStatus to);
+}
+public interface CommandReceiptRepository {
+    Optional<CommandResult> find(UUID roomId, UUID commandId);
+    void save(UUID roomId, UUID commandId, byte[] requestHash, CommandResult result);
+}
+public interface ActionReceiptRepository {
+    Optional<ActionSubmissionResult> findByActionId(UUID actionId);
+    void saveFinal(ActionEnvelope envelope, ActionSubmissionResult result);
+}
+public interface SnapshotStore {
+    void append(StateSnapshot snapshot);
+    Optional<StateSnapshot> find(UUID matchId, long stateVersion);
+}
+public interface SettlementRepository {
+    void save(Settlement settlement);
+}
+public interface RoomEventRepository {
+    void append(RoomEvent event);
+    List<RoomEvent> readAfter(UUID roomId, long sequence, int limit);
+}
+public interface RecoveryService {
+    void recoverBeforeReady();
+}
+```
+
+`activeMatchId` 在首局创建前可空。命令 `save` 只接收 `requestHash` 和 `CommandResult`；动作 `saveFinal` 只接收 Envelope 和 `ActionSubmissionResult`。HTTP 状态与动作请求哈希不在这些端口上，由持久化适配器写入表内的 `http_status` 和 `request_sha256`。`find` 只返回领域结果，不带回原 HTTP 状态。`TurnScheduler.recoverBeforeReady` 调用 `RecoveryService.recoverBeforeReady`。
+
 **启动 Decision：**锁 Room 和当前 Match → 检查 RUNNING、模式许可、无活动 Decision、Match ACTIVE/Turn OPEN → 读取并固定 Agent 发布/配置版本 → 生成 Observation/合法映射 → 写 RUNNING 与记录占位、deadline → 递增 roomRevision，写 DECISION_STARTED 事件 → 提交后 Runner 在事务外构造/持久化输入并调用模型。跨 Room 复用 Agent 的配置变更也必须保持同一锁顺序；MVP 唯一 Room，不提供任意共享修改接口。
 
 **发布 Prompt：**锁 Room、Agent，检查命令回执和预期 Room/草稿版本 → 插入新 PromptVersion → 更新 published 指针 → 写回执和 PROMPT_PUBLISHED。编号用锁下 max+1 或当前版本+1，不用无锁计数。重复 commandId 不新建版本；相同内容的新命令仍发布新版本。

@@ -56,9 +56,9 @@ flowchart LR
 
 **前置：**阶段一 SQL、阶段二 Codec。
 
-**文件与模块：**`application/port/` Repository；`adapter/persistence/entity/`、`mapper/`、Mapper XML、JsonTypeHandler；PromptService、ConfigurationService、SnapshotStore、ReceiptStore；相关真实数据库测试。
+**文件与模块：**`application/port/` Repository；`adapter/persistence/entity/`、`mapper/`、Mapper XML、JsonTypeHandler；PromptService、ConfigurationService、SnapshotStore、CommandReceiptRepository、ActionReceiptRepository；相关真实数据库测试。
 
-**核心接口：**RoomRepository.lock、MatchRepository.compareAndSetVersion、DecisionRepository.transition、ReceiptRepository、PromptPublisher；方法必须表达事务行为，不能靠 BaseMapper.saveOrUpdate 完成结算。
+**核心接口：**RoomRepository.lock、MatchRepository.compareAndSetVersion、DecisionRepository.transition、CommandReceiptRepository、ActionReceiptRepository、PromptPublisher；方法必须表达事务行为，不能靠 BaseMapper.saveOrUpdate 完成结算。
 
 **内容：**映射[完整表设计](05-persistence.md)，显式锁顺序、条件更新行数断言；不可变 Prompt/Config 版本和草稿 CAS；commandId/actionId 规范化哈希；已拒绝命令回执；初次 Room 无 Match 时原子创建 READY Match、席位、Turn、快照0。
 
