@@ -12,11 +12,13 @@
 | Participant | participantId，本局席位 | 关联 agentId、seatKey；重置后生成新 participantId |
 | GameState | matchId + stateVersion | 权威规则状态；不可变，不供所有 Agent 直接读取 |
 | GameObservation | decisionId + observationVersion | 针对席位的合法投影；MVP observationVersion = stateVersion |
-| TurnContext | turnId，一次行动阶段 | turnNo、roundNo、应行动席位、基准状态版本、调度模式 |
-| Decision | decisionId，一次尝试 | 固定输入与期限；失败重试创建新 ID，仍可属于同一 turnId |
+| TurnContext | turnId，一次行动阶段 | turnNo、roundNo、应行动席位、基准状态版本、调度模式、TurnStatus |
+| Decision | decisionId，一次尝试 | 固定输入与期限；同一 turnId 可含每名应行动者的尝试，失败重试创建新 ID |
 | ActionEnvelope | actionId，一次提交 | 关联身份、基准版本和游戏 Payload；不是成功证明 |
-| ActionSubmissionResult | actionId 的持久化回执 | EXECUTED / REJECTED；未来同时模式允许 ACCEPTED |
-| Settlement | settlementId，一次有效结算 | 关联成功动作、Decision、阶段及前后状态版本 |
+| ActionSubmissionResult | actionId 的持久化回执 | EXECUTED / REJECTED；同时回合预留 ACCEPTED，不表示世界已改变 |
+| ParticipantStanding | 一次结果中的参与者名次 | rank 从 1 起，相同 rank 为并列；score 可选 |
+| Settlement | settlementId，一次阶段结算 | 关联本阶段全部成功动作及前后状态版本；整个阶段只推进一次 stateVersion |
+| SettledAction | 阶段结算中的一条成功动作 | participantId、decisionId、actionId 与动作内容 |
 | PromptDraft | agentId + revision | 可变草稿；只保存不生效 |
 | PromptVersion | promptVersionId + versionNo | 不可变发布内容，与单个 Match 无绑定 |
 | AgentConfig | configVersionId + versionNo | 不可变 Runtime/模型/MemoryPolicy 配置快照；Agent 指针指向最新版 |
@@ -24,7 +26,7 @@
 | GameEvent | matchId + sequence | 游戏客观事实，不等同于模型意图或完整审计 |
 | RoomEvent | roomId + sequence | 管理面持久化推送事件，包括控制/配置/决策/世界变化 |
 
-Round 表示游戏自己的大轮次；Turn/Phase 表示一次行动收集与结算阶段；Decision 表示某个席位的一次尝试；Action 是提交内容。MVP turnId 即阶段 ID，不再增加重复 phaseId 字段；四子棋 turnNo 从 1 开始，roundNo = floor((turnNo-1)/2)+1。失败不增加 turnNo/stateVersion；成功落子后创建下一 Turn。
+Round 表示游戏自己的大轮次；Turn/Phase 表示一次行动收集与结算阶段；Decision 表示某个席位的一次尝试；Action 是提交内容。MVP turnId 即阶段 ID，不再增加重复 phaseId 字段；四子棋 turnNo 从 1 开始，roundNo = floor((turnNo-1)/2)+1。失败不增加 turnNo/stateVersion；成功落子后创建下一 Turn。一次阶段结算无论包含一条还是多条动作，都只递增一次 stateVersion。
 
 stateVersion 初始为 0，仅成功的权威规则结算递增；roomRevision 对控制、生效配置、Decision 转换及结算递增；草稿仅增加自己的 revision。RoomEvent sequence 为持续跨 Match 的推送游标，不与上述两者混用。
 
@@ -41,8 +43,17 @@ public record GameKey(String gameType, String gameRulesVersion) {}
 public record Participant(UUID participantId, UUID agentId, String seatKey) {}
 public record TurnContext(UUID turnId, long turnNo, long roundNo,
     long baseStateVersion, SchedulingMode schedulingMode,
-    List<UUID> requiredParticipants) {}
+    List<UUID> requiredParticipants, TurnStatus status) {}
 public enum SchedulingMode { TURN_BASED_SEQUENTIAL, TURN_BASED_SIMULTANEOUS }
+public enum TurnStatus { OPEN, RESOLVED, CANCELLED }
+public record ParticipantStanding(UUID participantId, int rank, Double score) {}
+public record GameResult(GameOutcome status, List<ParticipantStanding> standings,
+    String reason) {}
+public enum GameOutcome { ONGOING, WIN, DRAW }
+public record SettledAction(UUID participantId, UUID decisionId, UUID actionId,
+    Map<String, Object> action) {}
+public record Settlement(UUID settlementId, UUID matchId, UUID turnId,
+    long fromVersion, long toVersion, List<SettledAction> actions) {}
 
 public interface GameDefinition<S extends GameState,
                                 A extends GameAction,
@@ -89,7 +100,11 @@ public interface ActionSubmitter {
 
 ActionParser 可由 Codec 实现，ActionValidator 可由 GameDefinition 实现，不要求各建一个实现类。ActionSchemaProvider 属协议适配模块；ActionSpecification 只通过稳定 schemaId 关联外部 Schema。Registry 是显式白名单，不开启 Jackson default typing 或按外部类名加载。
 
-GameResult 为 `ONGOING/WIN/DRAW`，含 winnerParticipantIds、scores、reason，允许未来多人及非零和评分。Match 的 ABORTED 是运行终止，不伪造成某方获胜。规则产生可重放的事实；若未来有随机性，应在规则输入中显式传入已记录的随机事件/种子与算法版本，不在纯规则内部读取时钟或随机源。
+GameResult 为 `ONGOING/WIN/DRAW`，用 standings 表示名次。ParticipantStanding.rank 从 1 起，相同名次为并列，rank 1 为胜者；score 可选。WIN 至少包含一个 rank 1。参与者数量不固定，因此同一结果可表达 1v1、多人混战和完整排名。DRAW 不要求胜者。Match 的 ABORTED 是运行终止，不伪造成某方获胜。
+
+TURN_BASED_SEQUENTIAL 的 requiredParticipants 只有一名；TURN_BASED_SIMULTANEOUS 列出本阶段必须行动的全部席位，这些 Decision 共享同一 turnId。一个 Match 同时只有一个 currentTurnId。Settlement 记录本阶段的全部 SettledAction，顺序回合一条、同时回合多条，整个阶段只把 stateVersion 加一。同时回合的动作收集器、截止策略和持久化尚未实现。
+
+规则产生可重放的事实；若未来有随机性，应在规则输入中显式传入已记录的随机事件/种子与算法版本，不在纯规则内部读取时钟或随机源。
 
 ## 3. Match 与执行状态
 
@@ -126,12 +141,12 @@ stateDiagram-v2
 | pause | ACTIVE | RUNNING 且有活动决策则 PAUSING，否则 PAUSED；不取消；已暂停为幂等无变化 |
 | set_mode STEP | 非终局 | 改 STEP；有决策则 PAUSING，无决策则 PAUSED；不创建许可 |
 | set_mode AUTO | 非终局 | 只改 mode；已 PAUSED/PAUSING 不解除暂停；RUNNING 的单步决策可在结算后自动继续 |
-| cancel_decision | 有 PENDING/RUNNING | 当前 Decision CANCELLED；PAUSED；尽力取消网络；Match 不结束 |
+| cancel_decision | 当前回合有 PENDING/RUNNING | 当前回合全部未完成 Decision CANCELLED；PAUSED；尽力取消网络；Match 不结束 |
 | reset | 任意当前 Match | 未结束旧局 ABORTED，活动决策 CANCELLED；新局 READY/STEP/PAUSED，stateVersion=0 |
 
 busy 时 step 返回 CONTROL_BUSY，并持久化命令回执，不排队；有暂停请求时 continue 同样返回 CONTROL_BUSY，待 PAUSED 后再操作。终局 pause/set_mode/start/continue/step/cancel 返回 MATCH_NOT_ACTIVE；reset 仍允许。
 
-所有控制含 commandId、expectedRoomRevision、expectedMatchId。先查同 ID 回执，再检查版本和状态；相同命令重试返回原结果。不同 commandId 的重复点击也不能积累许可：串行化后第一次把 PAUSED 改为 RUNNING，后续 busy 或修订冲突。服务端确认切换后禁止启动新决策；若新决策在切换命令之前已线性化，则它就是需要完成的当前决策，界面显示其 ID。
+所有控制含 commandId、expectedRoomRevision、expectedMatchId。先查同 ID 回执，再检查版本和状态；相同命令重试返回原结果。不同 commandId 的重复点击也不能积累许可：串行化后第一次把 PAUSED 改为 RUNNING，后续 busy 或修订冲突。服务端确认切换后禁止启动新决策；若新决策在切换命令之前已线性化，则它们属于需要完成的当前回合，界面显示其 ID。
 
 正常终局优先于“暂停后状态”：结算将 Match 置为 FINISHED、Room 执行状态置为 PAUSED，且不得再启动决策；不能把 FINISHED 覆盖成 ACTIVE。reset 使旧 Match 的所有许可失效并创建新 Match；排队 tick 必须检查所携带 matchId 和当前指针。
 
@@ -158,7 +173,7 @@ MVP PENDING 与 RUNNING 可以在同一启动事务中完成，外界通常只�
 
 非法动作导致 FAILED、棋盘不变、暂停；相同 Action ID 的不同请求内容属于冲突，不把已成功 Decision 改成 FAILED。未知/不匹配身份的请求不应使其他合法 Decision 失败。成功事件仅在 EXECUTED 后产生。
 
-未来同时回合可先令提交回执为 ACCEPTED，Decision 仍 RUNNING 并标记 submittedActionId；由统一阶段结算置 COMPLETED，不需要把“收到动作”当成状态结算。截止后的缺席策略与原子批结算属于未来实施决定，不在 MVP 偷加默认动作。
+领域结算已经按阶段记录一条或多条动作，但动作收集器、截止策略和持久化尚未实现。未来同时回合可先令提交回执为 ACCEPTED，Decision 仍 RUNNING 并标记 submittedActionId；由统一阶段结算置 COMPLETED，不需要把“收到动作”当成状态结算。截止后的缺席策略与原子批结算属于未来实施决定，不在 MVP 偷加默认动作。
 
 ## 5. Connect Four 规则
 

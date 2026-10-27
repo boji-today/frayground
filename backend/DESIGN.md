@@ -17,6 +17,7 @@ classDiagram
   class Participant
   class TurnPlan
   class GameResult
+  class ParticipantStanding
   class GameRegistry
   class GameCodec
 
@@ -29,6 +30,7 @@ classDiagram
   GameDefinition --> Resolution
   Resolution --> GameEventDraft
   Resolution --> GameResult
+  GameResult --> ParticipantStanding
   GameRegistry --> GameDefinition : definition
   GameRegistry --> GameCodec : codec
   GameCodec --> GameState
@@ -60,6 +62,7 @@ classDiagram
 
   class Decision
   class Settlement
+  class SettledAction
   class DecisionStatus
   class ActionEnvelope
   class ActionSubmissionResult
@@ -85,7 +88,7 @@ classDiagram
   ActionSubmitter --> ActionEnvelope
   ActionSubmitter --> ActionSubmissionResult
   ActionSubmissionResult --> SubmissionStatus
-  Settlement --> ActionEnvelope
+  Settlement --> SettledAction
   Settlement --> Match
 
   class PromptVersion
@@ -99,7 +102,7 @@ classDiagram
 
 - `GameState` / `GameAction` / `GameObservation`：规则状态、结构化动作和席位可见观察。
 - `GameDefinition`：定义初始化、观察、动作校验、阶段结算和终局判定。
-- `GameEventDraft` / `Resolution` / `GameResult`：规则产生的事件草稿、结算结果和游戏结局。
+- `GameEventDraft` / `Resolution` / `GameResult` / `ParticipantStanding`：规则产生的事件草稿、结算结果、游戏结局和参与者名次。
 - `GameKey` / `Participant` / `TurnPlan`：规则版本标识、局内席位和下一阶段计划。
 - `GameRegistry` / `GameCodec`：按游戏键注册规则，并在 JSON 边界转换强类型对象。
 - `Room` / `Match`：跨重置的会话容器与其中的一局游戏。
@@ -112,9 +115,17 @@ classDiagram
 - `AgentRunner` / `AgentRuntime`：编排一次决策与执行 Agent 决策机制；二者都不能直接修改世界。
 - `AgentContextBuilder` / `ModelAdapter`：构造模型输入并隔离具体模型供应商。
 - `ActionEnvelope` / `ActionSubmitter`：带身份版本的动作提交，以及权威校验和结算入口。
-- `ActionSubmissionResult` / `SubmissionStatus` / `Settlement`：提交回执、执行阶段和成功世界变化。
+- `ActionSubmissionResult` / `SubmissionStatus` / `Settlement` / `SettledAction`：提交回执、执行阶段、一次阶段结算及其包含的成功动作。整个阶段只推进一次 `stateVersion`。
 - `PromptVersion` / `AgentConfiguration` / `PromptPublisher`：不可变策略版本、Runtime 配置快照和发布入口。
 - `RoomHealth`：房间可用性标记，不参与 Match 或 Decision 的业务状态迁移。
+
+## 回合与排名
+
+`Match.participants` 不限定人数。`SchedulingMode.TURN_BASED_SEQUENTIAL` 的 `requiredParticipants` 只有一个席位；`TURN_BASED_SIMULTANEOUS` 列出本阶段必须行动的全部席位，这些 `Decision` 共享同一个 `turnId`。`Match.currentTurnId` 仍只有一个，不表示多个并行阶段。
+
+`GameResult.standings` 用名次覆盖 1v1、混战和完整排名。相同 `rank` 为并列，`rank` 1 为胜者；`score` 可选。`WIN` 至少有一个 `rank` 1，`DRAW` 不要求胜者。`ABORTED` 仍是运行终止，不是规则结局。
+
+`Settlement` 携带本阶段的 `List<SettledAction>`：顺序回合一条，同时回合多条，整个阶段只把 `stateVersion` 增加 1。同时回合的动作收集器、截止策略和持久化尚未实现。`ACCEPTED` 只表示动作已收取，不表示世界已经改变。`CANCEL_DECISION` 取消当前回合全部未完成决策，不结束 Match。
 
 ## MatchStatus
 
@@ -181,7 +192,7 @@ stateDiagram-v2
   CANCELLED --> [*]
 ```
 
-一个 `Turn` 可以包含一次或多次失败的 `Decision`，但只有权威成功结算才推进 Match 的 `stateVersion`。`RESOLVED` 和 `CANCELLED` 都是终态。
+一个 `Turn` 可以包含每名应行动参与者的 `Decision`，以及同一席位的失败重试。只有权威成功结算才推进 Match 的 `stateVersion`，且一次阶段结算只推进一个版本。`RESOLVED` 和 `CANCELLED` 都是终态。
 
 ## SubmissionStatus
 
@@ -197,7 +208,7 @@ stateDiagram-v2
   REJECTED --> [*]
 ```
 
-MVP 为顺序回合，提交最终只能是 `EXECUTED` 或 `REJECTED`。`ACCEPTED` 仅为未来同时回合保留，不能被当成世界已经改变。
+MVP 运行的是顺序回合，提交最终只能是 `EXECUTED` 或 `REJECTED`。`ACCEPTED` 表示为同时回合预留的已收取动作，不能被当成世界已经改变。阶段结算契约已能携带多条动作，但动作收集器、截止策略和持久化尚未实现。
 
 ## RoomHealth
 
