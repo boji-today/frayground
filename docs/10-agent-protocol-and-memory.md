@@ -35,7 +35,8 @@ public record ModelCapabilities(boolean nativeJsonSchema,
     boolean betaRequired, Set<String> supportedSchemaKeywords) {}
 public record ModelConfiguration(String provider, String modelId,
     boolean thinking, double temperature, int maxOutputTokens,
-    String credentialRef, String outputStrategy) {}
+    int decisionTimeoutMs, String credentialRef, String outputStrategy,
+    boolean allowBeta) {}
 public record ModelRequest(List<ModelMessage> messages,
     JsonNode outputSchema, ModelConfiguration configuration) {}
 public record ModelInvocationResult(String providerRequestId,

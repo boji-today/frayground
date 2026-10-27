@@ -21,7 +21,7 @@
 | SettledAction | 阶段结算中的一条成功动作 | participantId、decisionId、actionId 与动作内容 |
 | PromptDraft | agentId + revision | 可变草稿；只保存不生效 |
 | PromptVersion | promptVersionId + versionNo | 不可变发布内容，与单个 Match 无绑定 |
-| AgentConfig | configVersionId + versionNo | 不可变 Runtime/模型/MemoryPolicy 配置快照；Agent 指针指向最新版 |
+| AgentConfiguration | configVersionId + versionNo | 不可变 Runtime/模型/MemoryPolicy 配置快照；Agent 指针指向最新版 |
 | DecisionRecord | decisionId | 输入、上下文构造版本、模型动作输出、校验、执行回执、错误及用量 |
 | GameEventDraft | 一次规则结算的产出 | type、eventVersion、payload；不含对局身份与序号 |
 | GameEvent | matchId + sequence | 已记录的游戏客观事实，不等同于模型意图或完整审计 |
