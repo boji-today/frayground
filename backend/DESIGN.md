@@ -114,7 +114,7 @@ classDiagram
 - `RuntimeOutcome` / `SelectedAction` / `StructuredAction`：Runtime 返回的候选选择、结构化动作或失败结果。
 - `AgentRunner` / `AgentRuntime`：编排一次决策与执行 Agent 决策机制；二者都不能直接修改世界。
 - `AgentContextBuilder` / `ModelAdapter`：构造模型输入并隔离具体模型供应商。
-- `ActionEnvelope` / `ActionSubmitter`：带身份版本的动作提交，以及权威校验和结算入口。
+- `ActionEnvelope` / `ActionSubmitter`：带身份版本的动作提交，以及权威校验和结算入口。信封只携带身份、版本和 `action` 载荷，不定义效果；过、认输等动作种类由载荷表达，效果由 `GameDefinition` 决定。
 - `ActionSubmissionResult` / `SubmissionStatus` / `Settlement` / `SettledAction`：提交回执、执行阶段、一次阶段结算及其包含的成功动作。整个阶段只推进一次 `stateVersion`。
 - `PromptVersion` / `AgentConfiguration` / `PromptPublisher`：不可变策略版本、Runtime 配置快照和发布入口。
 - `RoomHealth`：房间可用性标记，不参与 Match 或 Decision 的业务状态迁移。
@@ -193,6 +193,8 @@ stateDiagram-v2
 ```
 
 一个 `Turn` 可以包含每名应行动参与者的 `Decision`，以及同一席位的失败重试。只有权威成功结算才推进 Match 的 `stateVersion`，且一次阶段结算只推进一个版本。`RESOLVED` 和 `CANCELLED` 都是终态。
+
+过和认输都是 `action` 载荷中的游戏动作，不是 `TurnStatus`。游戏定义了该动作且校验通过后，与其他合法动作一样经权威结算：回执为 `EXECUTED`，回合变为 `RESOLVED`，整个阶段 `stateVersion` 加 1。过通常使对局保持 `ONGOING`，再由 `nextTurn` 给出下一阶段。认输由规则给出终局 `GameResult`，`Match` 变为 `FINISHED`；它不是 `ABORTED`，也不是 `CANCELLED`。`cancel_decision`、reset 和中止仍只把未结算阶段标为 `CANCELLED`，不推进 `stateVersion`。某游戏未定义该动作时按规则拒绝。四子棋当前只有 `place_disc`，不存在跳过动作；这是该游戏规则，不是平台禁止过。
 
 ## SubmissionStatus
 

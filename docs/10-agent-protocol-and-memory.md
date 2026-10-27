@@ -6,7 +6,7 @@
 
 平台定义 Envelope，游戏定义 action。Runner/未来 SDK 生成 actionId、关联平台提供的 Match/Turn/Decision 和 stateVersion；LLM 不负责身份或提交协议。通用引擎根据 Match 的 GameKey 找到 Codec 和 Schema，再将 JsonNode 转换为游戏强类型。JSON Schema 校验通过不等于动作在当前状态合法。
 
-四子棋 Payload 为 `{"type":"place_disc","column":3}`。机器人可采用 `move_and_attack` + movement/attack，资源游戏可采用 trade + target/offer/request；这些未来示例的完整 Schema 位于 OpenAPI components，不进入 MVP 游戏注册表。
+四子棋 Payload 为 `{"type":"place_disc","column":3}`。机器人可采用 `move_and_attack` + movement/attack，资源游戏可采用 trade + target/offer/request；这些未来示例的完整 Schema 位于 OpenAPI components，不进入 MVP 游戏注册表。游戏若在自身 Schema 中定义 `pass` 或 `resign`，它们是 action Payload，走同一提交与权威结算，不是控制命令。
 
 protocolVersion 描述平台参与契约；gameRulesVersion 描述规则和状态解释；actionSchemaId 指定该规则注册的动作结构。Match 固定后两者，DecisionRequest 引用；Envelope 不重复附带可相互矛盾的规则版本。所有输入均不能以 JSON 字段指定任意 Java 类或远程 Schema URL。
 

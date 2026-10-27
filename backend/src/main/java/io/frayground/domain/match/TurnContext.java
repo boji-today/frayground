@@ -15,7 +15,8 @@ import java.util.UUID;
  * is the match state version the phase is based on. A sequential phase lists
  * one required participant; a simultaneous phase lists everyone who must act,
  * and their decisions share this {@code turnId}. {@code status} is
- * {@code OPEN}, {@code RESOLVED}, or {@code CANCELLED}. Failed attempts may be
+ * {@code OPEN}, {@code RESOLVED}, or {@code CANCELLED}. That status does not
+ * encode which action was settled. Failed attempts may be
  * retried within the phase. Only one successful settlement advances the match
  * {@code stateVersion}, and it advances that version once.
  */

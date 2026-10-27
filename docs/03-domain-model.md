@@ -104,6 +104,8 @@ GameResult 为 `ONGOING/WIN/DRAW`，用 standings 表示名次。ParticipantStan
 
 TURN_BASED_SEQUENTIAL 的 requiredParticipants 只有一名；TURN_BASED_SIMULTANEOUS 列出本阶段必须行动的全部席位，这些 Decision 共享同一 turnId。一个 Match 同时只有一个 currentTurnId。Settlement 记录本阶段的全部 SettledAction，顺序回合一条、同时回合多条，整个阶段只把 stateVersion 加一。同时回合的动作收集器、截止策略和持久化尚未实现。
 
+过和认输都是 action 载荷中的游戏动作，不是 TurnStatus。ActionEnvelope 只携带身份、版本和载荷，不定义效果；效果由 GameDefinition 的 validate / resolve 决定。游戏定义了该动作且校验通过后，回执为 EXECUTED，回合变为 RESOLVED，整个阶段 stateVersion 加一。过通常使对局保持 ONGOING，再由 nextTurn 给出下一阶段。认输由规则给出终局 GameResult，Match 变为 FINISHED；它不是 ABORTED，也不是 CANCELLED。cancel_decision、reset 和中止仍只把未结算阶段标为 CANCELLED，不推进 stateVersion。某游戏未定义该动作时按规则拒绝。
+
 规则产生可重放的事实；若未来有随机性，应在规则输入中显式传入已记录的随机事件/种子与算法版本，不在纯规则内部读取时钟或随机源。
 
 ## 3. Match 与执行状态
@@ -190,7 +192,7 @@ public record ConnectFourObservation(List<List<String>> board,
 
 - board 是 6 行 × 7 列，row=0 为顶部，column=0 为最左；值为 EMPTY/A/B，不是 agentId。Seat 到 Participant 的映射由 Match 提供。
 - 初始化恰好两个不同席位 A/B，A 先手。participants 集合的通用设计不替代具体游戏人数检查。
-- 非终局且为当前席位才可 place_disc；column 必须为整数 0..6，列顶非 EMPTY 则满列非法；不存在跳过动作。
+- 非终局且为当前席位才可 place_disc；column 必须为整数 0..6，列顶非 EMPTY 则满列非法；不存在跳过动作。这是四子棋规则，不是平台禁止过或认输；本游戏 Schema 未定义二者，提交会被拒绝。
 - 自 row=5 向上寻找首个空位，写入当前席位。围绕该格扫描横、竖、两条斜线；任一连续长度 >=4 则 WIN。先检查胜利，再在 moveCount=42 时判 DRAW，否则切换席位。
 - 终局 currentParticipantId 为 null，合法动作列表为空；禁止进一步 resolve。
 - 成功返回 DiscPlaced（row/column/seat/participantId）及可选 MatchFinished（result/winningCells）。新状态和集合均防御性复制；非法动作不得原地修改旧状态。
