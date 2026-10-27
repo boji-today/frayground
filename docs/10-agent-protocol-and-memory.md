@@ -38,18 +38,35 @@ public record ModelConfiguration(String provider, String modelId,
     int decisionTimeoutMs, String credentialRef, String outputStrategy,
     boolean allowBeta) {}
 public record ModelRequest(List<ModelMessage> messages,
-    JsonNode outputSchema, ModelConfiguration configuration) {}
+    String outputSchemaJson, ModelConfiguration configuration) {}
 public record ModelInvocationResult(String providerRequestId,
     String actualModel, String content, List<ToolArguments> toolArguments,
     String finishReason, TokenUsage usage, Duration latency,
     RuntimeError error) {}
 public record BuiltContext(String builderVersion,
     List<ModelMessage> messages, int utf8Bytes) {}
+public sealed interface RuntimeOutcome
+    permits RuntimeOutcome.SelectedAction, RuntimeOutcome.StructuredAction,
+        RuntimeOutcome.Failed {
+  record SelectedAction(String selectedActionId) implements RuntimeOutcome {}
+  record StructuredAction(String actionJson) implements RuntimeOutcome {}
+  record Failed(RuntimeError error) implements RuntimeOutcome {}
+}
+public interface AgentRunner {
+    CompletionStage<DecisionOutcome> run(
+        RuntimeInput input, CancellationSignal cancellation);
+}
+public sealed interface DecisionOutcome
+    permits DecisionOutcome.Submitted, DecisionOutcome.NotSubmitted {
+  record Submitted(RuntimeOutcome candidate, ActionSubmissionResult submission)
+      implements DecisionOutcome {}
+  record NotSubmitted(RuntimeError error) implements DecisionOutcome {}
+}
 ```
 
 ModelMessage 是平台自己的简单角色/文本对象，由 ModelAdapter 转成厂商 JSON；不是 Spring AI/DeepSeek 内部类。ModelResponse 可作为 ModelInvocationResult 的输出部分，不为重复包装新增无行为类。RuntimeInput 是内部 Java 契约，不直接序列化：HostedBindings 由 Runner 按 Decision 固定的版本 ID 加载，不能重新读取 Agent 最新指针；外部请求只序列化 publicRequest，第三方不获得 HostedBindings。
 
-MVP RuntimeOutcome 为候选动作或调用错误及可选元数据，不直接修改 Match。未来远程异步提交可增加 SubmittedAction(actionId, receipt) 分支：远程 SDK 已经提交时，Runner 只观察原回执，不生成另一个 actionId 再提交；与本地 CandidateAction 分支明确区分。
+MVP RuntimeOutcome 为 SelectedAction、StructuredAction 或 Failed，不直接修改 Match。DecisionOutcome.Submitted 带上候选和权威回执；NotSubmitted 表示没有提交动作。未来远程异步提交可增加 SubmittedAction(actionId, receipt) 分支：远程 SDK 已经提交时，Runner 只观察原回执，不生成另一个 actionId 再提交；与本地 SelectedAction / StructuredAction 分支明确区分。
 
 AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：接收固定请求与绑定材料 → 选择 Runtime → 获得候选 → 解析、校验 → 构造 Envelope → ActionSubmitter → 返回并记录回执。LlmAgentRuntime 在其中使用 ContextBuilder 和 ModelAdapter；MockAgentRuntime 直接返回测试候选。事务性的动作提交独立于运行机制。
 
