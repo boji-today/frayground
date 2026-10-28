@@ -12,6 +12,9 @@ spring:
     time-zone: UTC
 
 frayground:
+  games:
+    connect-four:
+      enabled: true
   model:
     vendors:
       deepseek:

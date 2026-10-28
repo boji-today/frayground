@@ -19,7 +19,10 @@ classDiagram
   class GameResult
   class ParticipantStanding
   class GameRegistry
+  class GameRegistration
   class GameCodec
+  class MatchFactory
+  class InitializedMatch
 
   GameDefinition --> GameKey
   GameDefinition --> Participant
@@ -33,6 +36,14 @@ classDiagram
   GameResult --> ParticipantStanding
   GameRegistry --> GameDefinition : definition
   GameRegistry --> GameCodec : codec
+  GameRegistry --> GameRegistration : indexed by full key
+  GameRegistration --> GameDefinition
+  GameRegistration --> GameCodec
+  GameRegistration --> ActionSchemaProvider
+  MatchFactory --> InitializedMatch : create
+  InitializedMatch --> Match
+  InitializedMatch --> TurnContext
+  InitializedMatch --> StateSnapshot
   GameCodec --> GameState
   GameCodec --> GameAction
   GameCodec --> GameObservation
@@ -104,8 +115,9 @@ classDiagram
 - `GameDefinition`：定义初始化、观察、动作校验、阶段结算和终局判定。
 - `GameEventDraft` / `Resolution` / `GameResult` / `ParticipantStanding`：规则产生的事件草稿、结算结果、游戏结局和参与者名次。
 - `GameKey` / `Participant` / `TurnPlan`：规则版本标识、局内席位和下一阶段计划。
-- `GameRegistry` / `GameCodec`：按游戏键注册规则，并在 JSON 边界转换强类型对象。
-- 四子棋规则位于 `domain.game.connectfour`，JSON 编解码和动作 Schema 位于 `adapter.game.connectfour`；尚未注册到运行时。快照解码严格核对棋盘、落子数量、席位、当前行动方、胜线和结果，拒绝无法满足不变量的数据，不推测完整历史。
+- `GameRegistry` / `GameRegistration` / `GameCodec`：Spring 配置显式注册规则、编解码器和动作 Schema；注册表按完整 `GameKey` 建不可变索引，不做版本回退。四子棋由 `frayground.games.connect-four.enabled=true` 开启，缺省或 `false` 时不注册；修改开关需重启。
+- `MatchFactory` / `InitializedMatch`：应用层请求适配器创建初始 `Match`、首个 `TurnContext` 和版本 0 `StateSnapshot`。工厂只生成局内 ID 并使用规则初始化及编码；不保存数据、不创建 Agent/Prompt/Participant，也不启动调度或模型调用。保存边界由后续应用服务与持久化实现负责。
+- 四子棋规则位于 `domain.game.connectfour`，JSON 编解码和动作 Schema 位于 `adapter.game.connectfour`。快照解码严格核对棋盘、落子数量、席位、当前行动方、胜线和结果，拒绝无法满足不变量的数据，不推测完整历史。
 - 四子棋动态校验依次返回 `UNKNOWN_PARTICIPANT`、`GAME_FINISHED`、`NOT_YOUR_TURN`、`INVALID_ACTION`、`COLUMN_OUT_OF_RANGE`、`COLUMN_FULL`；动作编解码另行严格检查静态字段与类型。
 - `Room` / `Match`：跨重置的会话容器与其中的一局游戏。
 - `TurnContext` / `TurnStatus`：行动阶段的身份、基准版本和生命周期。
