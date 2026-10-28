@@ -8,6 +8,7 @@
 
 | ID / 主题 | 背景与替代方案 | 决定与理由 | 影响、复审条件与取代关系 |
 | --- | --- | --- | --- |
+| ADR-017 通用事务存储与内存模式 | 仅用内存 repository double 会造成测试语义与 Spring 事务代理分离；为支持开发模式需要共享状态回滚 | 通用 Store 扩展旧端口；共享内存状态由独立 Spring `gameTransactionManager` 管理，仓储写入只能在事务中；database 模式保留 JDBC `transactionManager` | 新 ApplicationContext 的内存数据为空，既有局不跨进程；当前没有 DB 仓储、模式热迁移或跨内存/JDBC 原子事务；若数据库适配器另需语义则复审，不取代 MySQL/MyBatis 选择 |
 | ADR-001 Java / Boot / 单工程 | 用户熟悉 Java；Python/Rust 或多 Maven 工程可行 | Java21/Boot4.1.1，模块化单体、包边界；降低审阅与跨语言成本 | 需依赖方向测试；有独立部署/团队边界证据再拆；无前序 |
 | ADR-002 MySQL / MyBatis-Plus | 初始建议 PostgreSQL/JDBC/Flyway；用户明确更改 | MySQL8.4 LTS + MP3.5.17 Boot4；Entity在适配层，显式事务SQL | 与MySQL方言绑定仅限持久化；取代未落地的PostgreSQL/Flyway建议，不存在数据迁移 |
 | ADR-003 完整 SQL 维护 | 自动迁移或应用每次启动改表均有其他取舍 | schema.sql/data.sql完整来源，空卷首次初始化，应用init=never；无迁移框架 | 既有库需人工备份/精确变更，不支持任意旧版本自动升级；多个发布环境时复审 |
@@ -26,6 +27,16 @@
 | ADR-015 本机实验室边界 | 完整账号系统超范围；无边界公开部署不可接受 | loopback、同源、Origin/Header校验、基本限流；Key仅后端 | 不是正式授权；远程开放前必须新增身份/权限/CSRF/SSRF方案 |
 
 未来同步回合、远程协议和记忆模式为“提议/未来”，不是上述 ADR 自动批准的功能。正式采用时新增 ADR，说明取代关系，不重写历史理由。
+
+### ADR-017 通用事务存储与内存模式
+
+- **日期 / 类型 / 状态：** 2026-10-28 / 架构决策 / 已采纳。
+- **背景：** 通用存储契约需要为之后的持久化适配提供清晰扩展边界；开发和存储测试又需要一个受真实 Spring `@Transactional` 管理、可整体回滚的进程内实现。仅用互不共享的 repository map 或手工事务测试会掩盖跨仓储一致性问题。
+- **评估选项：** 仅以测试 fake 实现端口；增加自定义事务执行 API；采用 Spring 事务管理器管理共享内存状态；立即实现数据库仓储。
+- **决定：** 保持旧端口不变，新增 Store 子接口和单一 `InMemoryStorage` 状态镜像；使用 Spring `AbstractPlatformTransactionManager` 与 `TransactionSynchronizationManager` 实现 `gameTransactionManager`。两种模式都保留默认 JDBC `transactionManager`，未指定 manager 的 `@Transactional` 仍选择它；`gameTransactionManager` 在 database 模式复用同一实例。基础配置使用 database，dev profile 使用 memory。
+- **理由：** 让内存适配遵循 Spring 公开事务代理、传播与提交回调契约；共享状态使多仓储写入作为一个工作副本提交/回滚；无需定义自有事务入口，也不改变既定 MySQL/MyBatis 技术选择。
+- **影响与限制：** 内存写入必须在事务中；实例级锁让本进程事务串行；内存状态不跨新 ApplicationContext/进程保留。当前未实现数据库仓储、跨内存/JDBC 原子事务、运行时模式迁移或重启恢复。memory 模式仍保留 DataSource 配置和相关自动配置。
+- **复审条件与取代关系：** 若数据库仓储事务语义或并发证据无法由当前契约覆盖，应另行记录决策；本 ADR 不取代 ADR-002/003/012，也未修改旧决定。
 
 ## 2. 最关键的五个决定
 

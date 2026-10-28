@@ -4,6 +4,12 @@
 
 ## 类关系
 
+## 存储适配与事务
+
+通用存储扩展端口位于 `application.port`，不要求具体游戏参与；`adapter.memory` 的各仓储共享同一个 `InMemoryStorage` 状态镜像，避免单仓储 map 无法随事务整体回滚。`InMemoryTransactionManager` 使用 Spring `AbstractPlatformTransactionManager` 和 `TransactionSynchronizationManager`，应用服务应从公开代理入口使用 `@Transactional(transactionManager="gameTransactionManager")`。写操作及 `RoomRepository.lock` 要求活动内存事务，普通读取可在事务外执行；提交整体替换已提交状态，回滚丢弃工作副本。
+
+`frayground.storage.mode` 选择启动期适配：基础配置为 `database`，`dev` profile 为 `memory`。两种模式都保留默认 JDBC `transactionManager`，未指定 manager 的 `@Transactional` 使用它；`gameTransactionManager` 在 memory 模式管理内存状态，在 database 模式与 JDBC manager 为同一实例。memory 模式仍保留 DataSource/MyBatis 自动配置；database 模式仍需数据库仓储，当前尚未提供占位仓储或模式热切换。应用实例重建会得到空内存状态，内存模式不满足跨重启历史保留要求。内存事务在 beforeCommit 回调完成后封存工作副本；提交后的回调可读已提交结果，但不能再写入。
+
 ```mermaid
 classDiagram
   direction TB

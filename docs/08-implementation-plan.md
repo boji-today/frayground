@@ -24,7 +24,11 @@ flowchart LR
   P8 --> P9[9 E2E/验收]
 ```
 
-持久化提前于调度：避免先实现一套内存语义，之后重写幂等、暂停与恢复。测试可用内存 Repository double，但不是产品内存后端。
+持久化提前于调度：避免先实现一套内存语义，之后重写幂等、暂停与恢复。当前新增通用内存存储仅用于开发/测试运行模式；正式 database 模式仍需实现 MyBatis 持久化适配器。
+
+### 已确认的任务 3 补充：通用存储与内存事务模式
+
+本任务在不改变既有业务端口和领域对象的前提下，为 `application.port` 增加通用存储扩展，并新增共享 `InMemoryStorage` 状态镜像与 Spring `gameTransactionManager`。内存事务以 Spring 事务代理为入口，仓储写入必须在事务内；database 模式仍由 `transactionManager` 提供 JDBC 默认事务语义，当前没有数据库仓储实现，也没有内存/数据库混合原子事务或运行时模式迁移。`dev` profile 默认选择 memory，基础配置选择 database，可被外部配置覆盖。
 
 ## 3. 阶段一：工程、环境与完整 SQL
 

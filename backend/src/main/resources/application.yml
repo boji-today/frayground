@@ -12,6 +12,8 @@ spring:
     time-zone: UTC
 
 frayground:
+  storage:
+    mode: database
   games:
     connect-four:
       enabled: true
@@ -23,3 +25,13 @@ frayground:
           max-connections: 8
     system-api-keys:
       deepseek-flash: ""
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+frayground:
+  storage:
+    mode: memory
