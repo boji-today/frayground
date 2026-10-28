@@ -68,7 +68,7 @@ ModelMessage 是平台自己的简单角色/文本对象，由 ModelAdapter 转�
 
 MVP RuntimeOutcome 为 SelectedAction、StructuredAction 或 Failed，不直接修改 Match。DecisionOutcome.Submitted 带上候选和权威回执；NotSubmitted 表示没有提交动作。未来远程异步提交可增加 SubmittedAction(actionId, receipt) 分支：远程 SDK 已经提交时，Runner 只观察原回执，不生成另一个 actionId 再提交；与本地 SelectedAction / StructuredAction 分支明确区分。
 
-AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：接收固定请求与绑定材料 → 选择 Runtime → 获得候选 → 解析、校验 → 构造 Envelope → ActionSubmitter → 返回并记录回执。LlmAgentRuntime 在其中使用 ContextBuilder 和 ModelAdapter；MockAgentRuntime 直接返回测试候选。事务性的动作提交独立于运行机制。
+AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：接收固定请求与绑定材料 → 选择 Runtime → 获得候选 → 解析、校验 → 构造 Envelope → ActionSubmitter → 返回并记录回执。未来的 LlmAgentRuntime 将在其中使用 ContextBuilder 和 ModelAdapter；当前 MockAgentRuntime 直接返回首个测试候选。事务性的动作提交独立于运行机制。
 
 未来 RemoteHttpAgentRuntime 复用固定 DecisionRequest 与提交结果，第三方内部可用 Python、工具、工作流或自有模型；平台只等待协议结果。其内部策略、推理、Key 不要求上传，本地模型配置与 PromptVersion 可为空或由非敏感 agentVersion 代替。
 
@@ -136,6 +136,12 @@ sequenceDiagram
 Decision ID 是关联身份，不是凭证；可选未来 Turn Token 也不能替代身份授权。幂等保证防止重复执行，CSRF 处理浏览器跨站请求，stateVersion 防止过期结果，限流限制资源，Schema/规则决定动作结构及合法性，不能互相替代。
 
 ## 6. Stateless 输入与历史
+
+当前实现边界：`DecisionInputReader` 只解析通用 JSON 对象、候选表结构及生成模式；`StatelessContextBuilder` 使用固定的 DecisionRequest、PromptVersion、AgentConfiguration 构造 `stateless-v1` 四消息，`utf8Bytes` 为消息文本 UTF-8 字节数总和，默认预算 32768 字节，超限失败且不截断。玩家 Prompt 作为 JSON 字段承载。该实现不执行 JSON Schema/规则验证或输出解析，不访问 Store，也不代表 STRUCTURED_ACTION 输出链路已实现。Mock Runtime 按给定顺序选择 ACTION_SELECTION 首项；这不证明候选合法或动作已提交。
+
+消息外层字段按明确的插入顺序序列化，避免 JVM 间的 Map 迭代顺序差异改变实际消息文本；Schema、观察、候选和约束内部保留固定输入中的字段顺序，不执行通用 JSON 规范化。
+
+审计记录仍须在模型调用前保存实际输入；BuiltContext 不解决该执行时机。LLM 接入还需在模型调用前审计，并按候选动态构造 selection 输出 Schema（区别于游戏 actionSchema），再接入供应商 ModelAdapter。新候选游戏复用通用输入格式，不需要修改游戏字段；数据库只影响后续加载/保存边界，本次 Agent 实现不访问 Store。新模型保留 ModelAdapter 边界。历史/策略记忆、远程或同时回合、多模态仍需各自设计，本次不增加对应类型或接口。
 
 每次 ContextBuilder 独立构建：平台固定 JSON 输出指令 + 游戏规则说明 + 绑定的玩家 Prompt + 当前合法 Observation + Action Schema/候选 + 必要非敏感上下文。模型不需要 matchId/actionId 等提交身份，不把无关字段发送给模型。明确将玩家文本与平台指令分段；玩家文本无权改变服务端验证。
 

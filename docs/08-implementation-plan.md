@@ -112,6 +112,8 @@ flowchart LR
 
 **完成：**Mock HTTP 测试无需外网；实际合法动作与模型候选分开记录；更换 ModelAdapter 不改规则/调度。
 
+**当前进度：部分完成。** DecisionRequest JSON 形状解析、`stateless-v1` 上下文构造和确定性 Mock Runtime 已实现。Runner 编排、模型输出解析与验证、调用前审计接入及完整 STRUCTURED_ACTION 链路仍未实现；阶段未整体完成。
+
 ## 9. 阶段七：SSE 与历史
 
 **前置：**阶段三 RoomEvent、阶段五 API、阶段六 DecisionRecord。

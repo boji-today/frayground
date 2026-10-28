@@ -90,6 +90,9 @@ classDiagram
   class StructuredAction
   class AgentRuntime
   class AgentContextBuilder
+  class DecisionInputReader
+  class StatelessContextBuilder
+  class MockAgentRuntime
   class ModelAdapter
   class ActionSubmitter
 
@@ -99,8 +102,12 @@ classDiagram
   RuntimeOutcome <|-- SelectedAction
   RuntimeOutcome <|-- StructuredAction
   AgentRunner --> AgentRuntime : decide
-  AgentRunner --> AgentContextBuilder : build
-  AgentRunner --> ModelAdapter : invoke
+  LlmAgentRuntime --> AgentContextBuilder : build (future, not implemented)
+  LlmAgentRuntime --> ModelAdapter : invoke (future, not implemented)
+  DecisionInputReader --> DecisionRequest : parse JSON shapes
+  StatelessContextBuilder --> DecisionInputReader : parse fixed input
+  StatelessContextBuilder --> BuiltContext : four bounded messages
+  MockAgentRuntime --> DecisionInputReader : first supplied candidate
   AgentRunner --> ActionSubmitter : submit
   ActionSubmitter --> ActionEnvelope
   ActionSubmitter --> ActionSubmissionResult
@@ -134,6 +141,8 @@ classDiagram
 - `RuntimeOutcome` / `SelectedAction` / `StructuredAction`：Runtime 返回的候选选择、结构化动作或失败结果。
 - `AgentRunner` / `AgentRuntime`：编排一次决策与执行 Agent 决策机制；二者都不能直接修改世界。
 - `AgentContextBuilder` / `ModelAdapter`：构造模型输入并隔离具体模型供应商。
+- `DecisionInputReader` / `StatelessContextBuilder`：严格解析请求 JSON 形状并构造有字节预算的无状态四消息上下文；`MockAgentRuntime` 直接选择首个候选，不经 Builder 或模型。
+- `AgentRuntimeConfiguration`：只装配 JSON Reader、ContextBuilder 与 Mock Runtime；业务实现不依赖 Spring。`LlmAgentRuntime` 仅为未来设计，尚未实现；未来实现将使用 Builder 和 ModelAdapter。
 - `ActionEnvelope` / `ActionSubmitter`：带身份版本的动作提交，以及权威校验和结算入口。信封只携带身份、版本和 `action` 载荷，不定义效果；过、认输等动作种类由载荷表达，效果由 `GameDefinition` 决定。
 - `ActionSubmissionResult` / `SubmissionStatus` / `Settlement` / `SettledAction`：提交回执、执行阶段、一次阶段结算及其包含的成功动作。整个阶段只推进一次 `stateVersion`。
 - `PromptVersion` / `AgentConfiguration` / `PromptPublisher`：不可变策略版本、Runtime 配置快照和发布入口。

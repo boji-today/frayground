@@ -6,7 +6,7 @@
 
 - JUnit Jupiter 6，纯规则测试不启动 Spring；Scheduler 使用可控 Clock、手动推进的 Future 和测试 Executor，不依赖 Thread.sleep 碰运气。
 - MySQL 8.4 Testcontainers 与 Compose 使用相同补丁镜像；复用正式 schema.sql/data.sql；不以 H2 替代锁、JSON、生成列唯一键和事务测试。
-- MockAgent 支持固定动作序列、首个合法动作、延迟完成、拒绝、异常和永久不完成；MockModelAdapter 返回固定 HTTP 风格结构。
+- 生产 Mock Runtime 固定选择候选列表首项，不判断规则合法性；测试 fake 覆盖固定动作序列、首个合法动作、延迟完成、拒绝、异常和永久不完成。MockModelAdapter 返回固定 HTTP 风格结构。
 - 模型适配器用本地 JDK HttpServer 模拟 DeepSeek 响应；不新增真实模型调用作为 CI 前置条件。
 - 前端组件用 Vitest/Testing Library；最小端到端使用 Playwright，浏览器服务、MySQL、Mock Runtime 组成完整闭环。
 - 第二游戏 TakeAway 仅测试注册，覆盖无 board/column 的状态与动作。

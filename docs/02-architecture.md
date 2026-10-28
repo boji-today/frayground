@@ -32,8 +32,9 @@ flowchart LR
   ENGINE --> DOMAIN[domain: GameDefinition / State / Action]
   C4[games.connectfour] --> DOMAIN
   SCHED --> RUNNER[agent: AgentRunner / Runtime port]
-  RUNNER --> CTX[agent: ContextBuilder]
-  RUNNER --> MODEL[adapter.model: DeepSeek / Mock]
+  RUNNER --> RUNTIME[agent: AgentRuntime]
+  LLM[LlmAgentRuntime: future, not implemented] --> CTX[agent.context: ContextBuilder]
+  LLM --> MODEL[adapter.model: ModelAdapter]
   RUNNER --> SUBMIT[application: ActionSubmitter]
   SUBMIT --> ENGINE
   APP --> PORTS[application: Repository ports]
@@ -52,6 +53,8 @@ flowchart LR
 | adapter.model | DeepSeek/Mock 调用、能力、用量、错误归一化 | 生成平台身份字段、裁判 |
 | adapter.persistence | MyBatis-Plus Entity/Mapper/JSON TypeHandler、锁与 CAS | 泄漏持久化对象到前端 |
 | web | DTO、参数校验、错误映射、实验室 SSE | 暴露审计记录给任意 Agent |
+
+`agent.input` 解析 DecisionRequest JSON 形状；`agent.context` 构造有预算的 stateless 上下文；`agent.runtime` 包含 Runtime 实现。当前 Spring 装配仅提供 Reader、Builder 和确定性 Mock Runtime。业务实现不依赖 Spring；未来 LLM Runtime 复用 Builder 和 ModelAdapter，仍未实现。
 
 engine 的当前契约：
 
