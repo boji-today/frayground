@@ -13,7 +13,7 @@
 | 测试 | JUnit Jupiter 6.0.3、Testcontainers 2.0.5（Boot BOM） | 用户确认从原文 JUnit 5 调整为 Boot 默认版本 |
 | 前端 | React 19.3、TypeScript 6.0、Vite 8、Radix Themes 3 | npm lockfile 固定后续选择的补丁；不用浮动 latest 生成 |
 | 通信 | Spring MVC REST + SseEmitter；OpenAPI 3.1.1 | 不引入 WebFlux、WebSocket 或消息中间件 |
-| 模型 | JDK HttpClient / DeepSeek Chat Completions | 自定义小适配器，不引入 Spring AI 或 LangChain4j |
+| 模型 | Apache HttpClient 5 异步池 / DeepSeek Chat Completions | 每家服务商独立客户端、连接池和 I/O reactor；不引入 Spring AI 或 LangChain4j |
 
 核验日期 2026-10-19；这些是文档与 BOM 的兼容基线，不代表本仓库已经通过依赖解析或运行测试。[Boot 要求](https://docs.spring.io/spring-boot/system-requirements.html)、[BOM](https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html)、[MyBatis-Plus](https://baomidou.com/getting-started/install/)、[Validator](https://github.com/networknt/json-schema-validator)、[Maven](https://maven.apache.org/docs/history.html)。前端依据：[React](https://react.dev/versions)、[TypeScript](https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/)、[Vite](https://vite.dev/blog/announcing-vite8)、[Radix](https://www.radix-ui.com/themes/docs/overview/releases)。
 
@@ -152,6 +152,6 @@ sequenceDiagram
 
 ## 6. 范围与选择理由
 
-Spring AI 2.x 与 LangChain4j 均有 Boot 4 接入路径，不能以“不兼容”为拒绝理由；当前仅一次 HTTP 调用和小动作 Schema，直接 HttpClient 更容易审阅，减少框架隐式重试和历史会话。未来仅替换 ModelAdapter 或 Runtime。[Spring AI](https://spring.io/blog/2026/06/12/spring-ai-2-0-0-GA-available-now/)、[LangChain4j](https://docs.langchain4j.dev/tutorials/spring-boot-integration/)。
+Spring AI 2.x 与 LangChain4j 均有 Boot 4 接入路径，不能以“不兼容”为拒绝理由。模型调用仍是一次 Chat Completions 和小动作 Schema，但不使用 JDK `HttpClient`：它不能按服务商限制物理连接数，默认完成线程也无界。每家服务商使用独立的 Apache HttpClient 5 异步客户端、连接池和 I/O reactor；最大连接数来自配置，池满时在同一次 `decisionTimeoutMs` 内等待，关闭 Bean 时释放客户端。不引入 OkHttp、Feign 或自动重试。未来仅替换 ModelAdapter 或 Runtime。[Spring AI](https://spring.io/blog/2026/06/12/spring-ai-2-0-0-GA-available-now/)、[LangChain4j](https://docs.langchain4j.dev/tutorials/spring-boot-integration/)。
 
 顺序与同时回合共用阶段身份、Decision、观察和 Envelope；同时回合需新增动作收集器、截止策略和阶段结算事务。允许该扩展修改调度实现，不承诺零改动。持续世界、ECS、动态不可信插件均不进入当前设计。

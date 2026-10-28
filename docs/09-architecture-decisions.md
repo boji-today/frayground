@@ -15,7 +15,8 @@
 | ADR-005 游戏插件与强类型 | 每游戏写房间引擎简单但会复制调度；大规则插件系统过重 | 单GameDefinition + Registry/Codec，State/Action/Observation分离 | 第二游戏夹具验证，无动态不可信代码；多人/持续世界可合理改调度 |
 | ADR-006 参与席位集合 | 1v1固定双字段会把当前玩法写入平台 | Room/Match用集合，人数约束由四子棋规则检查 | 不实现多人产品；未来人数扩展无需改身份模型 |
 | ADR-007 Runtime / Runner / ModelAdapter | 绑定LLM框架或把提交交给模型都会扩大耦合 | Runtime返回候选，Runner编排，ModelAdapter隔离厂商，Submitter权威结算 | 新供应商改Adapter，复杂Agent改Runtime；不会改游戏规则 |
-| ADR-008 直接HTTP模型接入 | Spring AI/LangChain4j均有Boot4路线 | MVP采用JDK HttpClient，小契约便于审阅能力/重试/用量 | 需自行做错误映射；多工具/多模态工作流确有需求再评估框架，不以“不兼容”误拒 |
+| ADR-008 直接HTTP模型接入 | Spring AI/LangChain4j均有Boot4路线 | 小契约便于审阅能力/重试/用量，不把模型调用交给 LLM 框架 | 需自行做错误映射；JDK HttpClient 这一传输选择由 ADR-016 取代；多工具/多模态工作流确有需求再评估框架，不以“不兼容”误拒 |
+| ADR-016 每服务商异步连接池 | JDK HttpClient 不能按服务商限制物理连接数，默认完成线程无界；OkHttp/Feign 会带入另一套客户端 | Apache HttpClient 5 异步客户端。每家独立客户端、连接池和单个 I/O reactor；连接上限来自 yml；池满等待共享 decisionTimeoutMs；销毁时关闭 | 取代 ADR-008 的传输选择，不改变 ModelAdapter 契约；依赖 httpclient5 |
 | ADR-009 Prompt与配置版本 | 直接修改可变Prompt会污染运行中输入 | 草稿与不可变发布版本分离；RUNNING事务绑定Prompt/Config | 存储增加，便于关联行为；记录输入不保证模型再现同输出 |
 | ADR-010 决策边界暂停 | 即时取消或暂存输出也合理，但费用与状态复杂 | AUTO/STEP与执行状态分离；当前决策完成后暂停；单步不累积；中止独立 | 控制变化只改调度与UI，不改规则；取代未确认的即时取消方案 |
 | ADR-011 Envelope / Schema | 每游戏独立完整HTTP协议重复；LLM生成身份不可靠 | 平台Envelope + 游戏Payload；选择输出映射后走同一Submitter | Schema与动态规则均需校验；未来机器人只增游戏Schema/Codec |

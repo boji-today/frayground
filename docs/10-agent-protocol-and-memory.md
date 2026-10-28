@@ -100,6 +100,8 @@ AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：�
 
 默认请求：model=deepseek-flash、thinking.type=disabled、temperature=0、max_tokens=256、stream=false、response_format.type=json_object；连接超时 5 秒，剩余总决策期限限制请求超时。temperature=0 不保证重复输出一致。返回 usage 缺失为 null，不填 0；不保留 reasoning_content。
 
+传输不改变上述契约。每家服务商使用独立的 Apache HttpClient 5 异步客户端、连接池和 I/O reactor。最大连接数来自该家配置；池满时连接获取和请求执行共享同一次 `decisionTimeoutMs`，超时返回 `MODEL_TIMEOUT`，不为等待中的请求另建线程。适配器销毁时关闭客户端和连接池。
+
 官方价格核验快照（USD/百万 Token）：Flash 输入缓存命中低峰 0.003/高峰 0.006，未命中 0.15/0.30，输出 0.60/1.20；实际时段、地区与计费以调用时官方说明为准。MVP 记录用量，不建设金额硬预算。若展示估算必须标注价格快照时间和缓存/时段假设，不能将估算当账单。[价格依据](https://api-docs.deepseek.com/quick_start/pricing/)
 
 ## 5. 分层校验、提交与错误

@@ -10,3 +10,13 @@ spring:
       mode: never
   jackson:
     time-zone: UTC
+
+frayground:
+  model:
+    vendors:
+      deepseek:
+        base-url: https://api.deepseek.com
+        pool:
+          max-connections: 8
+    system-api-keys:
+      deepseek-flash: ""
