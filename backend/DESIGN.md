@@ -105,6 +105,8 @@ classDiagram
 - `GameEventDraft` / `Resolution` / `GameResult` / `ParticipantStanding`：规则产生的事件草稿、结算结果、游戏结局和参与者名次。
 - `GameKey` / `Participant` / `TurnPlan`：规则版本标识、局内席位和下一阶段计划。
 - `GameRegistry` / `GameCodec`：按游戏键注册规则，并在 JSON 边界转换强类型对象。
+- 四子棋规则位于 `domain.game.connectfour`，JSON 编解码和动作 Schema 位于 `adapter.game.connectfour`；尚未注册到运行时。快照解码严格核对棋盘、落子数量、席位、当前行动方、胜线和结果，拒绝无法满足不变量的数据，不推测完整历史。
+- 四子棋动态校验依次返回 `UNKNOWN_PARTICIPANT`、`GAME_FINISHED`、`NOT_YOUR_TURN`、`INVALID_ACTION`、`COLUMN_OUT_OF_RANGE`、`COLUMN_FULL`；动作编解码另行严格检查静态字段与类型。
 - `Room` / `Match`：跨重置的会话容器与其中的一局游戏。
 - `TurnContext` / `TurnStatus`：行动阶段的身份、基准版本和生命周期。
 - `ControlCommand` / `CommandResult`：控制请求及其确定性结果。
