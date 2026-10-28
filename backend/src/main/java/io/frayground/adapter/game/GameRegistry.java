@@ -11,9 +11,17 @@ import java.util.Optional;
  * and does not enable Jackson default typing.
  */
 public interface GameRegistry {
-  Optional<GameDefinition<?, ?, ?>> definition(GameKey key);
+  Optional<GameRegistration<?, ?, ?>> registration(GameKey key);
 
-  Optional<GameCodec<?, ?, ?>> codec(GameKey key);
+  default Optional<GameDefinition<?, ?, ?>> definition(GameKey key) {
+    return registration(key).map(GameRegistration::definition);
+  }
 
-  Optional<ActionSchemaProvider> schemaProvider(GameKey key);
+  default Optional<GameCodec<?, ?, ?>> codec(GameKey key) {
+    return registration(key).map(GameRegistration::codec);
+  }
+
+  default Optional<ActionSchemaProvider> schemaProvider(GameKey key) {
+    return registration(key).map(GameRegistration::schemaProvider);
+  }
 }
