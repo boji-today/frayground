@@ -16,6 +16,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -97,6 +98,34 @@ class DeepSeekModelAdapterTest {
     assertThat(parameters.path("properties").path("column").path("minimum").isMissingNode()).isTrue();
     assertThat(parameters.path("required").get(0).asString()).isEqualTo("column");
     assertThat(parameters.path("minLength").isMissingNode()).isTrue();
+  }
+
+  @Test
+  void authorizesOnlyTheMatchingSystemKey() throws Exception {
+    Captured captured = new Captured();
+    SystemModelCredentialProvider system = new SystemModelCredentialProvider(
+        Map.of("deepseek-flash", "flash-key", "other-model", "other-key"));
+    CompositeModelCredentialProvider credentials = new CompositeModelCredentialProvider(List.of(system));
+    DeepSeekModelAdapter adapter = adapter(server(500, "no", captured), credentials, 2);
+
+    ModelInvocationResult mismatched = adapter.invoke(
+        request(configuration("JSON_MODE", false, 1_000, "system:other-model", 16, 0), "a"), OPEN)
+        .toCompletableFuture().join();
+
+    assertThat(mismatched.error()).isNotNull();
+    assertThat(mismatched.error().code()).isEqualTo("MODEL_CONFIGURATION_INVALID");
+    assertThat(mismatched.error().message()).doesNotContain("flash-key").doesNotContain("other-key");
+    assertThat(captured.count.get()).isZero();
+
+    ModelInvocationResult sent = adapter.invoke(
+        request(configuration("JSON_MODE", false, 1_000, "system:deepseek-flash", 16, 0), "a"), OPEN)
+        .toCompletableFuture().join();
+
+    assertThat(captured.count.get()).isEqualTo(1);
+    assertThat(captured.authorization).isEqualTo("Bearer flash-key");
+    assertThat(captured.body).doesNotContain("flash-key").doesNotContain("other-key");
+    assertThat(sent.error()).isNotNull();
+    assertThat(sent.error().message()).doesNotContain("flash-key").doesNotContain("other-key");
   }
 
   @Test

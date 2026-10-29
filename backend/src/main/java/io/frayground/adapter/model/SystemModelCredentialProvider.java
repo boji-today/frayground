@@ -39,6 +39,9 @@ public final class SystemModelCredentialProvider implements ModelCredentialProvi
 
   @Override
   public Optional<String> resolve(ModelConfiguration configuration) {
+    if (!supports(configuration)) {
+      return Optional.empty();
+    }
     String apiKey = apiKeys.get(configuration.modelId());
     if (apiKey == null || apiKey.isBlank()) {
       return Optional.empty();

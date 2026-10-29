@@ -46,6 +46,13 @@ class SystemModelCredentialProviderTest {
     assertThat(provider.supports(configuration("deepseek-flash", "user:account"))).isFalse();
   }
 
+  @Test
+  void resolveReturnsEmptyForUnsupportedReferences() {
+    assertThat(provider.resolve(configuration("deepseek-flash", "user:account"))).isEmpty();
+    assertThat(provider.resolve(configuration("deepseek-flash", "system:other-model"))).isEmpty();
+    assertThat(provider.resolve(configuration("deepseek-flash", null))).isEmpty();
+  }
+
   private static ModelConfiguration configuration(String modelId, String credentialRef) {
     return new ModelConfiguration(
         "deepseek", modelId, false, 0, 16, 1_000, credentialRef, "JSON_MODE", false);
