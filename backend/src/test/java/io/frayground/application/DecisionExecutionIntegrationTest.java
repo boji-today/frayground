@@ -656,7 +656,7 @@ class DecisionExecutionIntegrationTest {
     return new Fixture(room,active);
   }
   record Fixture(Room room,Match match) {}
-  static class FaultGate { volatile boolean fail; volatile String target; volatile String falseTarget; volatile UUID projectedRoomId; volatile UUID projectedActiveMatchId; }
+  static class FaultGate { volatile boolean fail; volatile String target; volatile String falseTarget; volatile UUID projectedRoomId; volatile UUID projectedActiveMatchId; volatile CountDownLatch failureEvent; volatile int skip; volatile boolean once; }
   static class BindingSource implements AgentBindingsReader {
     final AtomicInteger version=new AtomicInteger(1); final Clock clock;
     BindingSource(Clock clock) { this.clock=clock; }
@@ -686,10 +686,14 @@ class DecisionExecutionIntegrationTest {
     @SuppressWarnings("unchecked") static <T> T wrap(Class<T> type,T delegate,FaultGate gate,String name) {
       return (T)java.lang.reflect.Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},(proxy,method,args)->{
         if (Objects.equals(gate.falseTarget,name+"."+method.getName())) return false;
-        if ((gate.fail && name.equals("gameEvent") && method.getName().equals("append")) || Objects.equals(gate.target,name+"."+method.getName()))
-          throw new IllegalStateException("injected "+name+"."+method.getName());
+        if ((gate.fail && name.equals("gameEvent") && method.getName().equals("append")) || Objects.equals(gate.target,name+"."+method.getName())) {
+          if (gate.skip>0) gate.skip--;
+          else { if (gate.once) gate.target=null; throw new IllegalStateException("injected "+name+"."+method.getName()); }
+        }
         try {
           Object result=method.invoke(delegate,args);
+          if (name.equals("roomEvent") && method.getName().equals("append") && args[0] instanceof RoomEvent event
+              && event.payload().containsKey("errorCode") && gate.failureEvent!=null) gate.failureEvent.countDown();
           if (name.equals("room") && method.getName().equals("find") && args!=null && Objects.equals(args[0],gate.projectedRoomId)
               && result instanceof Optional<?> found && found.isPresent()) {
             Room room=(Room)found.get();
