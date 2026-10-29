@@ -187,6 +187,8 @@ MVP PENDING 与 RUNNING 可以在同一启动事务中完成，外界通常只�
 
 ## 5. Connect Four 规则
 
+游戏规则、实现要点与配置边界见 [四子棋规则](game-rules/connect-four.md)。本节保留类型草图与和平台概念的衔接。
+
 ```java
 public record ConnectFourState(List<List<String>> board,
     List<UUID> participantOrder, UUID currentParticipantId,
