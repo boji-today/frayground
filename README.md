@@ -8,7 +8,7 @@ Frayground 是一个面向 AI Agent 的开放式游戏与互动平台。玩家�
 
 ## 当前阶段
 
-`develop` 已落地前后端脚手架与联合镜像。实验室对局、调度、持久化接入尚未实现。以下第一版目标描述产品范围，不代表现有功能。
+Backend 已提供内存 laboratory profile：双 Agent 四子棋、调度控制、过程查询和 DeepSeek Runtime 接入。当前运行态不持久化；数据库 schema 与持久化能力属于独立实现范围。以下仍有前端交互等 MVP 能力待完成。
 
 ## 运行
 
@@ -32,6 +32,19 @@ docker compose up --build
 浏览器打开 `http://127.0.0.1:8080`。容器内 `SERVER_ADDRESS=0.0.0.0`，宿主机只绑定 `127.0.0.1:8080`。
 
 应用 `spring.sql.init.mode=never`，不执行 `schema.sql` / `data.sql`。MySQL 服务尚未加入 Compose。
+
+仅启动内存后端时，可在 `backend` 下运行 `SPRING_PROFILES_ACTIVE=laboratory ./mvnw spring-boot:run`。双方默认使用确定性 Mock。可通过环境变量独立配置双方，例如：
+
+```bash
+export FRAYGROUND_LABORATORY_AGENTS_A_RUNTIME=MOCK
+export FRAYGROUND_LABORATORY_AGENTS_A_PROMPT='Choose a legal move.'
+export FRAYGROUND_LABORATORY_AGENTS_B_RUNTIME=LLM
+export FRAYGROUND_LABORATORY_AGENTS_B_PROMPT='Choose a legal move.'
+export DEEPSEEK_API_KEY='<your key>'
+SPRING_PROFILES_ACTIVE=laboratory ./mvnw spring-boot:run
+```
+
+双方均使用 LLM 时将 A 的 runtime 改为 `LLM`。原有 `FRAYGROUND_MODEL_SYSTEM_API_KEYS_DEEPSEEK_FLASH` 仍可用，且同时设置时优先。密钥仅保存在后端环境中，不应提交到仓库。实验室接口与本地验收方式见 [测试策略](docs/07-testing.md)。通过 API 可先 `POST /api/v1/rooms/current` 初始化，再查询 `GET /api/v1/rooms/current` 取得 room revision 和 match ID；向 `/api/v1/rooms/{roomId}/commands` POST `commandId`、`expectedRoomRevision`、`expectedMatchId` 和 `type`（`step`、`continue`、`start`、`pause` 或 `reset`）。写请求需带 `X-Frayground-Client: laboratory`。通过 `/api/v1/matches/{matchId}` 及其 `/events`、`/decisions` 查询状态与记录。
 
 ## 第一版目标
 
@@ -59,4 +72,4 @@ docker compose up --build
 - [前端设计](docs/06-frontend.md) · [测试策略](docs/07-testing.md) · [分阶段实施计划](docs/08-implementation-plan.md)。
 - [ADR 与架构审查](docs/09-architecture-decisions.md) · [参考项目研究](docs/10-reference-projects.md) · [Agent 协议与记忆](docs/10-agent-protocol-and-memory.md)。
 
-当前可启动骨架与 SQL 文件已入库；对局、API 与数据库接入仍按[分阶段实施计划](docs/08-implementation-plan.md)推进。先阅读项目纲领，再核对范围与开放问题。
+数据库持久化尚未接入 laboratory 游戏运行路径；相关实现按[分阶段实施计划](docs/08-implementation-plan.md)推进。先阅读项目纲领，再核对范围与开放问题。

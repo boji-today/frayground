@@ -26,4 +26,4 @@ frayground:
         pool:
           max-connections: 8
     system-api-keys:
-      deepseek-flash: ""
+      deepseek-flash: ${DEEPSEEK_API_KEY:}

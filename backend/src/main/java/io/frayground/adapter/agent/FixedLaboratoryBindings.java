@@ -17,6 +17,11 @@ public final class FixedLaboratoryBindings implements AgentBindingsReader {
     bindings = Map.of(agentA, create(agentA, createdAt), agentB, create(agentB, createdAt));
   }
 
+  public FixedLaboratoryBindings(Map<UUID, HostedBindings> bindings) {
+    if (bindings == null || bindings.isEmpty()) throw new IllegalArgumentException("bindings");
+    this.bindings = Map.copyOf(bindings);
+  }
+
   private static HostedBindings create(UUID id, Instant createdAt) {
     UUID promptId = UUID.nameUUIDFromBytes((id + ":prompt:1").getBytes(StandardCharsets.UTF_8));
     UUID configId = UUID.nameUUIDFromBytes((id + ":config:1").getBytes(StandardCharsets.UTF_8));

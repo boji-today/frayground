@@ -13,3 +13,26 @@ frayground:
     room-id: 00000000-0000-4000-8000-000000000001
     agent-a: 00000000-0000-4000-8000-000000000002
     agent-b: 00000000-0000-4000-8000-000000000003
+    agents:
+      a:
+        runtime: MOCK
+        prompt: Choose a legal move.
+        provider: deepseek
+        model-id: deepseek-flash
+        thinking: false
+        temperature: 0
+        max-output-tokens: 1024
+        decision-timeout-ms: 30000
+        output-strategy: JSON_MODE
+        allow-beta: false
+      b:
+        runtime: MOCK
+        prompt: Choose a legal move.
+        provider: deepseek
+        model-id: deepseek-flash
+        thinking: false
+        temperature: 0
+        max-output-tokens: 1024
+        decision-timeout-ms: 30000
+        output-strategy: JSON_MODE
+        allow-beta: false

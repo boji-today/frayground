@@ -1,8 +1,12 @@
 # 测试策略与设计验收
 
-> 这是下一轮实现的测试规范，当前没有业务代码或业务测试结果。文档阶段实际检查结果见交付总结；不得把下列用例写成已通过。
+> 前半部分记录设计期测试规范及 2026-10-19 文档检查。backend 闭环实现后的实际验收结果见第 10 节；未列为实际执行的用例仍是后续范围。
 
 ## 1. 工具与夹具
+
+当前 backend 的 laboratory profile 使用内存 Store。`LaboratoryGameHttpAcceptanceTest` 使用固定七手 Runtime fixture 通过公开随机回环 HTTP API 验收控制流程与历史；`LaboratoryDefaultMockHttpAcceptanceTest` 使用生产默认 Mock Runtime 验收完整对局、单步/继续和重置。`LaboratoryDeepSeekLoopbackAcceptanceTest` 将 DeepSeek endpoint 指向本机临时 HTTP server，使用生产 adapter 与两个 LLM 绑定跑完一局。离线验收替换 DataSource 并断言没有数据库连接交互，不构成真实 DeepSeek 验证。
+
+真实模型调用须作为手动 opt-in 单独执行；不得将其作为默认测试或 CI 前置条件。
 
 - JUnit Jupiter 6，纯规则测试不启动 Spring；Scheduler 使用可控 Clock、手动推进的 Future 和测试 Executor，不依赖 Thread.sleep 碰运气。
 - MySQL 8.4 Testcontainers 与 Compose 使用相同补丁镜像；复用正式 schema.sql/data.sql；不以 H2 替代锁、JSON、生成列唯一键和事务测试。
@@ -100,7 +104,7 @@ SSE 用实际 HTTP 流测帧格式、单调序号、Last-Event-ID 优先级、�
 3. 输出错误暂停 → 修正配置并下一步 → 成功；刷新/断线后状态一致且 dirty 文本不被推送覆盖。
 4. 重启恢复暂停 → 取消前旧请求不落子 → 人工继续；历史审计可关联整个过程。
 
-真实 DeepSeek 为人工 opt-in smoke：只发一次受限决策，记录响应、合法性、耗时和用量；没有 Key 或网络权限时明确未执行，不能将模拟通过写成真实 API 通过。
+真实 DeepSeek 为人工 opt-in 完整对局 smoke，最多 42 手，记录结果、耗时和汇总用量；没有 Key 或网络权限时明确未执行，不能将模拟通过写成真实 API 通过。
 
 ## 8. 策略实验与交付检查
 
@@ -124,4 +128,42 @@ Prompt Sensitivity Test 的未来研究方案：固定相同 Observation/规则/
 | SQL 草案 | 16 张表的外键目标均有定义；未出现 DROP/TRUNCATE/JSONB；这是静态核对，不是 MySQL 执行验证 |
 | 平局夹具 | 双方各 21 子，无横竖斜四连；仅验证文档给出的满盘事实，未声称完成规则实现测试 |
 
-本机未安装 OpenAPI 专用验证器或 SQL 解析器，本轮未安装依赖。未执行完整 OpenAPI 专用校验、MySQL DDL/容器测试、Java 依赖解析、Mermaid 渲染、真实模型调用或业务 E2E；这些是后续阶段的明确验收门槛。当前交付没有业务代码。
+截至 2026-10-19 的文档阶段检查：本机未安装 OpenAPI 专用验证器或 SQL 解析器，本轮未安装依赖。该阶段未执行完整 OpenAPI 专用校验、MySQL DDL/容器测试、Java 依赖解析、Mermaid 渲染、真实模型调用或业务 E2E；后续实际实现验收见第 10 节。
+
+## 10. Backend 内存对局闭环（2026-10-29）
+
+内存闭环验收包含：`LaboratoryGameHttpAcceptanceTest` 以 7 手胜局序列验收 HTTP 控制、终局记录和历史查询；`LaboratoryDefaultMockHttpAcceptanceTest` 使用生产默认 Mock runtime 执行初始化、单步暂停、继续终局和重置；`LaboratoryDeepSeekLoopbackAcceptanceTest` 使用真实 DeepSeek adapter 和本地 fake HTTP 服务验收完整局、请求 prompt/候选、暂停、HTTP 错误、非法候选、继续及 reset 后迟到响应处理；`LaboratoryMixedAgentConfigurationTest` 检查双侧配置绑定，`LaboratoryMixedRuntimeHttpAcceptanceTest` 实际运行 A=MOCK/B=LLM 混合对局；`DeepSeekLiveGameSmokeTest` 默认跳过，只有显式 opt-in 才会连接真实 DeepSeek。离线 Spring 验收使用 mock DataSource 并断言未访问数据库。
+
+2026-10-30 离线定向与回归合并执行：
+
+```bash
+cd backend
+./mvnw -o -q -Dtest=LaboratoryGameHttpAcceptanceTest,LaboratoryDeepSeekLoopbackAcceptanceTest,LaboratoryDefaultMockHttpAcceptanceTest,LaboratoryMixedAgentConfigurationTest,LaboratoryMixedRuntimeHttpAcceptanceTest,DeepSeekLiveGameSmokeTest,LaboratoryApiIntegrationTest,LlmDecisionExecutionIntegrationTest,DeepSeekModelAdapterTest,ModelConfigurationYamlTest,SystemModelCredentialProviderTest test
+```
+
+共 32 项：31 passed、1 skipped、0 failed；跳过项是默认关闭的真实 DeepSeek smoke。随后抽取辅助类后，使用 `./mvnw -o -q -Dtest=LaboratoryDeepSeekLoopbackAcceptanceTest,LaboratoryMixedRuntimeHttpAcceptanceTest,LaboratoryGameHttpAcceptanceTest test` 复跑，4 项全部通过。没有执行真实 DeepSeek 请求。
+
+真实调用仅在明确授权后手动执行，会产生模型调用费用。设置 `DEEPSEEK_API_KEY`（或原配置 `FRAYGROUND_MODEL_SYSTEM_API_KEYS_DEEPSEEK_FLASH`）后运行：
+
+```bash
+cd backend
+FRAYGROUND_RUN_DEEPSEEK_SMOKE=true ./mvnw -Dtest=DeepSeekLiveGameSmokeTest test
+```
+
+该 smoke 复用 `LaboratoryGameHttpClient` 和 `LaboratoryGameSmokeRunner`，每次本地 HTTP 请求的超时取 5 秒与剩余期限的较小值。23 分钟覆盖测试方法内的初始化、控制、轮询和最终记录查询，不包含 Spring 上下文启动及关闭。结束时统一输出成功状态、错误码、局 ID、结果、步数、耗时和用量；网络或期限失败时，使用最后成功读取的记录快照，并标明 `usageSource=lastSuccessfulPoll`。尚未读到记录时标明 `usageAvailable=false`，数值不代表已确认的真实用量。摘要不输出响应正文、密钥或私有 Prompt。离线 loopback 测试使用本机模拟服务，不会调用真实 DeepSeek。
+
+### 10.1 验收缺口补齐（2026-10-30）
+
+- `LaboratoryGameAssertions` 通过公开 HTTP API 以每页 2 条检查历史：Decision 唯一性、时间顺序、Match/Participant 身份、详情与摘要一致、动作与回执一致、事件与 Decision/席位对应，并用 `DiscPlaced` 重建最终棋盘。
+- 重置检查双方 Participant 全部更新、双方 Agent 与席位保留、Room 保留及 READY/STEP/PAUSED；重放旧命令后新房间状态不变，旧 Match 完整结果及所有公开决策、详情和事件与重置前相同。
+- 生产 Mock 测试逐格检查初始空棋盘和单步一子，自动结束后持续观察 600ms，确认没有新增决策或状态变化。双 LLM 测试核对实际 Participant、Prompt/配置版本、动作、回执及用量；混合 Runtime 测试核对双方身份、LLM 请求的 Prompt/候选/动作及双方不同的用量记录。错误后的手动 continue 必须使用新 Decision ID，并保留失败记录。
+- 双 LLM 和混合 Runtime 共用独立实例的 `LocalDeepSeekServer`；所有对局 HTTP 测试共用 `LaboratoryGameHttpClient`。`LaboratoryGameSmokeRunnerTest` 在本机模拟 API 上覆盖成功、模型失败、HTTP 错误、请求挂起、轮询等待耗尽总期限、请求进行中耗尽总期限六条路径，验证摘要和没有自动重试/continue。
+
+最终离线验收与相关回归命令：
+
+```bash
+cd backend
+./mvnw -o -q -Dtest=LaboratoryGameHttpAcceptanceTest,LaboratoryDeepSeekLoopbackAcceptanceTest,LaboratoryDefaultMockHttpAcceptanceTest,LaboratoryMixedAgentConfigurationTest,LaboratoryMixedRuntimeHttpAcceptanceTest,LaboratoryGameSmokeRunnerTest,DeepSeekLiveGameSmokeTest,LaboratoryApiIntegrationTest,LlmDecisionExecutionIntegrationTest,DeepSeekModelAdapterTest,ModelConfigurationYamlTest,SystemModelCredentialProviderTest,DecisionExecutionIntegrationTest,LaboratoryRoomInitializerTest test
+```
+
+最终执行结果：154 项，153 passed、1 skipped、0 failures、0 errors。包含既有 `DecisionExecutionIntegrationTest` 的 114 项测试，以及新增的 6 项离线 smoke 流程测试。跳过项仍为未开启的真实 DeepSeek smoke；没有向真实模型服务发送请求。`git diff --check` 通过。

@@ -54,7 +54,7 @@ flowchart LR
 | adapter.persistence | MyBatis-Plus Entity/Mapper/JSON TypeHandler、锁与 CAS | 泄漏持久化对象到前端 |
 | web | DTO、参数校验、错误映射、实验室 SSE | 暴露审计记录给任意 Agent |
 
-`agent.input` 解析 DecisionRequest JSON 形状；`agent.context` 构造有预算的 stateless 上下文；`agent.runtime` 包含 Runtime 实现。当前 Spring 装配仅提供 Reader、Builder 和确定性 Mock Runtime。业务实现不依赖 Spring；未来 LLM Runtime 复用 Builder 和 ModelAdapter，仍未实现。
+`agent.input` 解析 DecisionRequest JSON 形状；`agent.context` 构造有预算的 stateless 上下文；`agent.runtime` 包含 Runtime 实现。laboratory profile 将每个席位的启动配置固定为不可变 Prompt/AgentConfiguration 绑定，并由 Router 选择 Mock 或 LLM Runtime。DeepSeek 通过既有 ModelAdapter 接入；密钥可由 `DEEPSEEK_API_KEY` 提供，已有的 `FRAYGROUND_MODEL_SYSTEM_API_KEYS_DEEPSEEK_FLASH` 配置优先。此装配不改变规则、调度或结算边界。业务实现不依赖 Spring。
 
 engine 的当前契约：
 
