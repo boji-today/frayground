@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.frayground.agent.ModelCredentialProvider;
 import io.frayground.domain.strategy.ModelConfiguration;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -44,6 +45,35 @@ class CompositeModelCredentialProviderTest {
 
     assertThat(provider.resolve(configuration("system:deepseek-flash"))).isEmpty();
     assertThat(user.resolveCalls).isZero();
+  }
+
+  @Test
+  void realSystemProviderResolvesOnlyTheMatchingKey() {
+    SystemModelCredentialProvider system = new SystemModelCredentialProvider(
+        Map.of("deepseek-flash", "flash-key", "other-model", "other-key"));
+    CompositeModelCredentialProvider provider = new CompositeModelCredentialProvider(
+        java.util.List.of(system));
+
+    assertThat(provider.resolve(configuration("system:deepseek-flash"))).contains("flash-key");
+    assertThat(provider.resolve(configuration("system:other-model"))).isEmpty();
+    assertThat(provider.resolve(configuration("user:account"))).isEmpty();
+    assertThat(provider.resolve(configuration("unknown:ref"))).isEmpty();
+
+    Fake fallback = new Fake("system:");
+    SystemModelCredentialProvider missing = new SystemModelCredentialProvider(
+        Map.of("other-model", "other-key"));
+    CompositeModelCredentialProvider missingProvider = new CompositeModelCredentialProvider(
+        java.util.List.of(missing, fallback));
+    assertThat(missingProvider.resolve(configuration("system:deepseek-flash"))).isEmpty();
+    assertThat(fallback.resolveCalls).isZero();
+
+    SystemModelCredentialProvider blank = new SystemModelCredentialProvider(
+        Map.of("deepseek-flash", " "));
+    Fake blankFallback = new Fake("system:");
+    CompositeModelCredentialProvider blankProvider = new CompositeModelCredentialProvider(
+        java.util.List.of(blank, blankFallback));
+    assertThat(blankProvider.resolve(configuration("system:deepseek-flash"))).isEmpty();
+    assertThat(blankFallback.resolveCalls).isZero();
   }
 
   @Test
