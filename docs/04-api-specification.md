@@ -1,6 +1,8 @@
 # API 与事件契约
 
-> 所有端点均为待实现设计；`x-implementation-status: planned-mvp` 表示下一轮范围，`future` 表示不部署。[openapi.yaml](openapi.yaml)是字段、必填、枚举与结构校验的唯一契约，本文解释语义。状态机见[领域模型](03-domain-model.md)。
+> 第 8 项实现覆盖房间初始化与读取、控制命令、Match、事件与决策查询以及房间 SSE；其他端点仍为规划。[openapi.yaml](openapi.yaml)是字段、必填、枚举与结构校验的契约，本文解释语义。状态机见[领域模型](03-domain-model.md)。
+
+实验室模式使用内存数据和固定 Mock Agent。命令响应仅包含已保存的回执字段，当前房间状态另行查询。Match 不提供创建或结束时间；Decision 只提供执行状态、动作、错误和用量，不返回私有模型输入输出。重启后内存数据清空。
 
 ## 1. 三类接口
 
@@ -55,7 +57,7 @@ ID 为 UUID 字符串；版本/序号为非负安全整数，时间为 UTC；列
 }
 ```
 
-模式切换使用相同公共字段，type=`set_mode` 并携带 mode=`STEP`；其他命令不携带 mode。重置响应包含新 currentMatchId 对应的 RoomView，旧 expectedMatchId 作废。
+模式切换使用相同公共字段，type=`set_mode` 并携带 mode=`STEP`；其他命令不携带 mode。重置回执包含新 matchId，查询房间可获得当前状态；旧 expectedMatchId 作废。
 
 草稿与发布：
 
@@ -153,7 +155,8 @@ MVP 的 SSE 是失效通知加小型状态字段，不承诺每条事件携带�
 | 409 | DRAFT_REVISION_CONFLICT / MATCH_NOT_ACTIVE / NO_ACTIVE_DECISION / CURSOR_INVALID | 获取最新状态 |
 | 422 | SCHEMA_VALIDATION_FAILED / ILLEGAL_ACTION / CONTEXT_TOO_LARGE / MODEL_CONFIGURATION_INVALID / MEMORY_MODE_NOT_SUPPORTED | 调整请求；发生于当前决策时记录失败并暂停 |
 | 429 | RATE_LIMITED | 保留原命令/动作 ID，遵从 Retry-After；不自动调用模型 |
-| 503 | STORAGE_UNAVAILABLE / ROOM_UNAVAILABLE / INTERNAL_ERROR | 对未知提交结果先查询或复用原 ID；不发新动作 |
+| 500 | INTERNAL_ERROR | retryable=false，不自动重试；控制命令或动作提交结果不明时先查询状态，必要时复用原 ID；不生成新动作 |
+| 503 | STORAGE_UNAVAILABLE / ROOM_UNAVAILABLE | 对未知提交结果先查询或复用原 ID；不发新动作 |
 
 MODEL_TIMEOUT、MODEL_UNAVAILABLE、MODEL_RATE_LIMITED、MODEL_REFUSED、MODEL_OUTPUT_EMPTY、MODEL_OUTPUT_TRUNCATED、MODEL_OUTPUT_INVALID 是异步 DecisionRecord 的错误码，控制命令已返回 200 后不能再冒充其 HTTP 失败。retryable 指原传输请求可重试，不表示允许重新生成动作。模型错误均无自动重发，人工继续后为新 Decision。
 

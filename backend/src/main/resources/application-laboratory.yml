@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    # The JDBC transaction manager is present by project convention; this profile
+    # never opens a connection for the game transaction manager.
+    url: jdbc:mysql://127.0.0.1:3306/frayground
+    username: frayground
+    hikari:
+      initialization-fail-timeout: -1
+frayground:
+  storage:
+    mode: memory
+  laboratory:
+    room-id: 00000000-0000-4000-8000-000000000001
+    agent-a: 00000000-0000-4000-8000-000000000002
+    agent-b: 00000000-0000-4000-8000-000000000003

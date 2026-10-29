@@ -3,7 +3,7 @@ jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Frayground MVP Design Contract
   version: 1.0.0
-  description: 设计契约，尚未实现。planned-mvp 为下一轮范围；future 不部署。本机管理面不是外部 Agent 授权面。
+  description: implemented-memory 表示本机内存实验室实现；planned-mvp 和 future 仍为规划。本机管理面不是外部 Agent 授权面。
 servers:
 - url: http://localhost:8080
   description: 计划中的本机服务
@@ -27,9 +27,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoomView'
-              examples:
-                Room:
-                  $ref: '#/components/examples/Room'
         '400':
           $ref: '#/components/responses/Error'
         '404':
@@ -38,11 +35,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
     post:
       operationId: ensureCurrentRoom
       summary: 获取或初始化唯一房间
@@ -65,6 +64,8 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
@@ -75,7 +76,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoomView'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/rooms/{roomId}:
     get:
       operationId: getRoom
@@ -99,11 +100,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/rooms/{roomId}/commands:
     post:
       operationId: controlRoom
@@ -131,11 +134,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
       requestBody:
         required: true
         content:
@@ -369,11 +374,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/matches/{matchId}/snapshots/{stateVersion}:
     get:
       operationId: getSnapshot
@@ -457,11 +464,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/matches/{matchId}/decisions:
     get:
       operationId: listDecisions
@@ -487,11 +496,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/decisions/{decisionId}:
     get:
       operationId: getDecision
@@ -515,11 +526,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/rooms/{roomId}/events:
     get:
       operationId: subscribeRoomEvents
@@ -555,11 +568,13 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /agent/v1/decisions/claim:
     post:
       operationId: claimDecision
@@ -812,107 +827,61 @@ components:
     ParticipantView:
       type: object
       properties:
-        participantId:
-          type: string
-          format: uuid
-        agentId:
-          type: string
-          format: uuid
-        name:
-          type: string
-        seatKey:
-          type: string
-      required:
-      - participantId
-      - agentId
-      - name
-      - seatKey
+        participantId: {type: string, format: uuid}
+        agentId: {type: string, format: uuid}
+        seatKey: {type: string}
+      required: [participantId, agentId, seatKey]
       additionalProperties: false
     MatchView:
       type: object
       properties:
-        matchId:
-          type: string
-          format: uuid
-        roomId:
-          type: string
-          format: uuid
-        gameType:
-          type: string
-        gameRulesVersion:
-          type: string
-        status:
-          type: string
-          enum:
-          - READY
-          - ACTIVE
-          - FINISHED
-          - ABORTED
-        stateVersion:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-        turnId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-        turnNo:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-        roundNo:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-        currentParticipantId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
+        matchId: {type: string, format: uuid}
+        roomId: {type: string, format: uuid}
+        gameType: {type: string}
+        gameRulesVersion: {type: string}
+        status: {type: string, enum: [READY, ACTIVE, FINISHED, ABORTED]}
+        stateVersion: {type: integer, minimum: 0, maximum: 9007199254740991}
         participants:
           type: array
-          items:
-            $ref: '#/components/schemas/ParticipantView'
-        state:
+          items: {$ref: '#/components/schemas/ParticipantView'}
+        turn:
           type: object
-          additionalProperties: true
-        result:
-          $ref: '#/components/schemas/GameResult'
-        createdAt:
-          type: string
-          format: date-time
-        endedAt:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-      required:
-      - matchId
-      - roomId
-      - gameType
-      - gameRulesVersion
-      - status
-      - stateVersion
-      - turnId
-      - turnNo
-      - roundNo
-      - currentParticipantId
-      - participants
-      - state
-      - result
-      - createdAt
-      - endedAt
+          properties:
+            turnId: {type: [string, 'null'], format: uuid}
+            turnNo: {type: [integer, 'null']}
+            roundNo: {type: [integer, 'null']}
+            requiredParticipants:
+              type: [array, 'null']
+              items: {type: string, format: uuid}
+            decisions:
+              type: array
+              items: {$ref: '#/components/schemas/DecisionSummaryView'}
+          required: [turnId, turnNo, roundNo, requiredParticipants, decisions]
+          additionalProperties: false
+        result: {$ref: '#/components/schemas/LaboratoryGameResult'}
+        game: {$ref: '#/components/schemas/ConnectFourBoardView'}
+      required: [matchId, roomId, gameType, gameRulesVersion, status, stateVersion, participants, turn, result, game]
       additionalProperties: false
-      allOf:
-      - if:
-          properties:
-            gameType:
-              const: connect-four
-        then:
-          properties:
-            state:
-              $ref: '#/components/schemas/ConnectFourBoardView'
+    LaboratoryGameResult:
+      type: [object, 'null']
+      properties:
+        status: {type: string, enum: [ONGOING, WIN, DRAW]}
+        standings:
+          type: array
+          items:
+            type: object
+            properties:
+              participantId: {type: string, format: uuid}
+              rank: {type: integer}
+              score: {type: [number, 'null']}
+            required: [participantId, rank, score]
+            additionalProperties: false
+        reason: {type: [string, 'null']}
+        winnerParticipantIds:
+          type: array
+          items: {type: string, format: uuid}
+      required: [status, standings, reason, winnerParticipantIds]
+      additionalProperties: false
     RoomView:
       type: object
       properties:
@@ -1003,14 +972,12 @@ components:
     CommandResult:
       type: object
       properties:
-        commandId:
-          type: string
-          format: uuid
-        room:
-          $ref: '#/components/schemas/RoomView'
-      required:
-      - commandId
-      - room
+        commandId: {type: string, format: uuid}
+        roomRevision: {type: integer, minimum: 0}
+        matchId: {type: string, format: uuid}
+        executionMode: {$ref: '#/components/schemas/ExecutionMode'}
+        executionStatus: {$ref: '#/components/schemas/ExecutionStatus'}
+      required: [commandId, roomRevision, matchId, executionMode, executionStatus]
       additionalProperties: false
     PromptDraft:
       type: object
@@ -1649,130 +1616,48 @@ components:
       - cacheMissTokens
       additionalProperties: false
     DecisionView:
+      allOf:
+      - {$ref: '#/components/schemas/DecisionSummaryView'}
+      - type: object
+        properties:
+          submittedAction: {$ref: '#/components/schemas/LaboratoryAction'}
+          receipt:
+            type: [object, 'null']
+            properties:
+              status: {type: string}
+              actionId: {type: string, format: uuid}
+              stateVersion: {type: integer}
+              executedAction: {$ref: '#/components/schemas/LaboratoryAction'}
+              errorCode: {type: [string, 'null']}
+            required: [status, actionId, stateVersion, executedAction, errorCode]
+            additionalProperties: false
+        required: [submittedAction, receipt]
+    LaboratoryAction:
+      type: [object, 'null']
+      properties:
+        type: {type: string, const: place_disc}
+        column: {type: integer}
+      required: [type, column]
+      additionalProperties: false
+    DecisionSummaryView:
       type: object
       properties:
-        decisionId:
-          type: string
-          format: uuid
-        matchId:
-          type: string
-          format: uuid
-        participantId:
-          type: string
-          format: uuid
-        turnId:
-          type: string
-          format: uuid
-        status:
-          $ref: '#/components/schemas/DecisionStatus'
-        stateVersion:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-        observationVersion:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-        promptVersionId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-        configVersionId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-        startedAt:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-        deadlineAt:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-        endedAt:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-        request:
-          anyOf:
-          - $ref: '#/components/schemas/DecisionRequest'
-          - type: 'null'
-        configurationSnapshot:
-          anyOf:
-          - $ref: '#/components/schemas/AgentConfiguration'
-          - type: 'null'
-        contextBuilderVersion:
-          anyOf:
-          - type: string
-          - type: 'null'
-        modelInput:
-          anyOf:
-          - type: object
-            additionalProperties: true
-          - type: 'null'
-        modelOutput:
-          anyOf:
-          - type: object
-            additionalProperties: true
-          - type: 'null'
-        parsedAction:
-          anyOf:
-          - type: object
-            additionalProperties: true
-          - type: 'null'
-        validationResult:
-          anyOf:
-          - type: object
-            additionalProperties: true
-          - type: 'null'
-        submissionResult:
-          anyOf:
-          - $ref: '#/components/schemas/ActionSubmissionResult'
-          - type: 'null'
-        error:
-          anyOf:
-          - $ref: '#/components/schemas/Error'
-          - type: 'null'
-        usage:
-          anyOf:
-          - $ref: '#/components/schemas/TokenUsage'
-          - type: 'null'
-        latencyMs:
-          anyOf:
-          - type: integer
-            minimum: 0
-            maximum: 9007199254740991
-          - type: 'null'
-      required:
-      - decisionId
-      - matchId
-      - participantId
-      - turnId
-      - status
-      - stateVersion
-      - observationVersion
-      - promptVersionId
-      - configVersionId
-      - startedAt
-      - deadlineAt
-      - endedAt
-      - request
-      - configurationSnapshot
-      - contextBuilderVersion
-      - modelInput
-      - modelOutput
-      - parsedAction
-      - validationResult
-      - submissionResult
-      - error
-      - usage
-      - latencyMs
-      additionalProperties: false
+        decisionId: {type: string, format: uuid}
+        matchId: {type: string, format: uuid}
+        turnId: {type: string, format: uuid}
+        participantId: {type: string, format: uuid}
+        status: {$ref: '#/components/schemas/DecisionStatus'}
+        stateVersion: {type: integer}
+        observationVersion: {type: integer}
+        promptVersionId: {type: [string, 'null'], format: uuid}
+        configVersionId: {type: [string, 'null'], format: uuid}
+        startedAt: {type: [string, 'null'], format: date-time}
+        deadlineAt: {type: [string, 'null'], format: date-time}
+        endedAt: {type: [string, 'null'], format: date-time}
+        errorCode: {type: [string, 'null']}
+        usage: {anyOf: [{$ref: '#/components/schemas/TokenUsage'}, {type: 'null'}]}
+        latencyMs: {type: [integer, 'null']}
+      required: [decisionId, matchId, turnId, participantId, status, stateVersion, observationVersion, promptVersionId, configVersionId, startedAt, deadlineAt, endedAt, errorCode, usage, latencyMs]
     StateSnapshot:
       type: object
       properties:
@@ -1833,67 +1718,32 @@ components:
       properties:
         board:
           type: array
-          items:
-            type: array
-            items:
-              type: string
-              enum:
-              - EMPTY
-              - A
-              - B
-            minItems: 7
-            maxItems: 7
+          items: {type: array, items: {type: string, enum: [EMPTY, A, B]}, minItems: 7, maxItems: 7}
           minItems: 6
           maxItems: 6
-        moveCount:
-          type: integer
-          minimum: 0
-          maximum: 42
-        lastMove:
-          anyOf:
-          - type: object
-            properties:
-              row:
-                type: integer
-                minimum: 0
-                maximum: 5
-              column:
-                type: integer
-                minimum: 0
-                maximum: 6
-              seat:
-                type: string
-                enum:
-                - A
-                - B
-            required:
-            - row
-            - column
-            - seat
-            additionalProperties: false
-          - type: 'null'
+        seats: {type: object, additionalProperties: {type: string, format: uuid}}
+        currentParticipantId: {type: [string, 'null'], format: uuid}
+        moveCount: {type: integer, minimum: 0, maximum: 42}
         winningCells:
           type: array
           items:
             type: object
             properties:
-              row:
-                type: integer
-                minimum: 0
-                maximum: 5
-              column:
-                type: integer
-                minimum: 0
-                maximum: 6
-            required:
-            - row
-            - column
+              row: {type: integer}
+              column: {type: integer}
+            required: [row, column]
             additionalProperties: false
-      required:
-      - board
-      - moveCount
-      - lastMove
-      - winningCells
+        result: {$ref: '#/components/schemas/LaboratoryGameResult'}
+        lastMove:
+          type: [object, 'null']
+          properties:
+            row: {type: integer}
+            column: {type: integer}
+            seat: {type: string}
+            participantId: {type: string, format: uuid}
+          required: [row, column, seat, participantId]
+          additionalProperties: false
+      required: [board, seats, currentParticipantId, moveCount, winningCells, result, lastMove]
       additionalProperties: false
     ConnectFourObservation:
       type: object
@@ -2070,7 +1920,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/DecisionView'
+            $ref: '#/components/schemas/DecisionSummaryView'
         nextCursor:
           anyOf:
           - type: string
@@ -2531,177 +2381,14 @@ components:
         deadlineAt: '2026-10-19T08:00:30Z'
         agentVersion: null
       x-schema: DecisionRequest
-    Room:
-      summary: RoomView 示例
-      value:
-        roomId: 00000000-0000-4000-8000-000000000031
-        revision: 1
-        eventCursor: 1
-        executionMode: STEP
-        executionStatus: PAUSED
-        health: OK
-        healthError: null
-        currentMatch:
-          matchId: 20000000-0000-4000-8000-000000000001
-          roomId: 00000000-0000-4000-8000-000000000031
-          gameType: connect-four
-          gameRulesVersion: '1'
-          status: READY
-          stateVersion: 0
-          turnId: 40000000-0000-4000-8000-000000000001
-          turnNo: 1
-          roundNo: 1
-          currentParticipantId: 30000000-0000-4000-8000-000000000001
-          participants:
-          - participantId: 30000000-0000-4000-8000-000000000001
-            agentId: 00000000-0000-4000-8000-000000000001
-            name: Agent A
-            seatKey: A
-          - participantId: 30000000-0000-4000-8000-000000000002
-            agentId: 00000000-0000-4000-8000-000000000002
-            name: Agent B
-            seatKey: B
-          state:
-            board:
-            - - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-            - - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-            - - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-            - - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-            - - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-            - - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-              - EMPTY
-            moveCount: 0
-            lastMove: null
-            winningCells: []
-          result:
-            status: ONGOING
-            winnerParticipantIds: []
-            scores: {}
-            reason: null
-          createdAt: '2026-10-19T08:00:00Z'
-          endedAt: null
-      x-schema: RoomView
     CommandAck:
-      summary: CommandResult 示例
+      summary: 幂等命令回执
       value:
         commandId: 10000000-0000-4000-8000-000000000001
-        room:
-          roomId: 00000000-0000-4000-8000-000000000031
-          revision: 2
-          eventCursor: 2
-          executionMode: STEP
-          executionStatus: RUNNING
-          health: OK
-          healthError: null
-          currentMatch:
-            matchId: 20000000-0000-4000-8000-000000000001
-            roomId: 00000000-0000-4000-8000-000000000031
-            gameType: connect-four
-            gameRulesVersion: '1'
-            status: ACTIVE
-            stateVersion: 0
-            turnId: 40000000-0000-4000-8000-000000000001
-            turnNo: 1
-            roundNo: 1
-            currentParticipantId: 30000000-0000-4000-8000-000000000001
-            participants:
-            - participantId: 30000000-0000-4000-8000-000000000001
-              agentId: 00000000-0000-4000-8000-000000000001
-              name: Agent A
-              seatKey: A
-            - participantId: 30000000-0000-4000-8000-000000000002
-              agentId: 00000000-0000-4000-8000-000000000002
-              name: Agent B
-              seatKey: B
-            state:
-              board:
-              - - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-              - - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-              - - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-              - - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-              - - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-              - - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-                - EMPTY
-              moveCount: 0
-              lastMove: null
-              winningCells: []
-            result:
-              status: ONGOING
-              winnerParticipantIds: []
-              scores: {}
-              reason: null
-            createdAt: '2026-10-19T08:00:00Z'
-            endedAt: null
+        roomRevision: 2
+        matchId: 20000000-0000-4000-8000-000000000001
+        executionMode: STEP
+        executionStatus: RUNNING
       x-schema: CommandResult
     Agent:
       summary: AgentView 示例
