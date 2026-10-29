@@ -7,6 +7,7 @@ import java.util.*;
 public interface DecisionGameAccess {
   Prepared prepare(GameKey key, long stateVersion, Map<String, Object> state, List<Participant> participants, UUID participantId);
   Applied apply(GameKey key, long stateVersion, Map<String, Object> state, List<Participant> participants, UUID participantId, Map<String, Object> action);
+  Optional<Applied> resolveSystem(GameKey key, long stateVersion, Map<String, Object> state, List<Participant> participants);
   long roundNo(GameKey key, long turnNo);
 
   record Prepared(TurnPlan plan, String observationJson, String actionSpecificationJson,

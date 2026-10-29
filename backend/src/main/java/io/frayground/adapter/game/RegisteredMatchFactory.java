@@ -76,11 +76,15 @@ public final class RegisteredMatchFactory implements MatchFactory {
     }
 
     UUID matchId = Objects.requireNonNull(ids.get(), "matchId");
-    UUID turnId = Objects.requireNonNull(ids.get(), "turnId");
+    UUID turnId = null;
+    TurnContext turn = null;
+    if (!plan.requiredParticipants().isEmpty()) {
+      turnId = Objects.requireNonNull(ids.get(), "turnId");
+      turn = new TurnContext(turnId, 1, 1, 0, plan.mode(),
+          plan.requiredParticipants(), TurnStatus.OPEN);
+    }
     Match match = new Match(matchId, roomId, requestedKey, MatchStatus.READY,
         0, 0, turnId, participants, result);
-    TurnContext turn = new TurnContext(turnId, 1, 1, 0, plan.mode(),
-        plan.requiredParticipants(), TurnStatus.OPEN);
     Map<String, Object> encoded = jsonMapper.convertValue(
         registration.codec().encodeState(state), OBJECT_MAP);
     StateSnapshot snapshot = new StateSnapshot(matchId, 0, deepImmutableMap(encoded), clock.instant());

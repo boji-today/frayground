@@ -9,7 +9,10 @@ import java.util.Objects;
 public record InitializedMatch(Match match, TurnContext firstTurn, StateSnapshot initialSnapshot) {
   public InitializedMatch {
     Objects.requireNonNull(match);
-    Objects.requireNonNull(firstTurn);
     Objects.requireNonNull(initialSnapshot);
+    if ((firstTurn == null) != (match.currentTurnId() == null)
+        || (firstTurn != null && !firstTurn.turnId().equals(match.currentTurnId()))) {
+      throw new IllegalArgumentException("turn");
+    }
   }
 }

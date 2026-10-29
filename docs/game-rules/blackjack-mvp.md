@@ -1,6 +1,6 @@
 # Blackjack MVP（blackjack / 1）
 
-> 状态：已确认设计，尚未实现。本版本验证共享随机资源、严格顺序决策、隐藏信息和系统自动推进；不是完整赌场牌桌或多轮赛事。
+> 状态：规则、adapter 与系统结算编排已实现。本版本验证共享随机资源、严格顺序决策、隐藏信息和系统自动推进；不是完整赌场牌桌或多轮赛事。
 
 ## 范围
 
@@ -113,11 +113,11 @@
 
 需要最小扩展：
 
-1. `GameDefinition` 增加无 Participant 的强制自动转换能力，供初始化发牌和庄家阶段使用；普通 Agent Action 仍走 `validate/resolve`。
-2. 调度器在 start、step 或 Participant 结算后自动执行强制转换，直到下一个 Decision 边界或终局，并设置循环上限防止错误规则无限推进。
-3. `InitializedMatch` 与 MatchFactory 允许 READY Match 暂无首个 Turn；首个 Turn 由初始化 SYSTEM 结算后创建。
-4. Settlement 增加 `PARTICIPANT_ACTION` / `SYSTEM` 原因；SYSTEM 允许没有 turnId 和 SettledAction。持久化结构必须能保存无 participant/decision/action 的系统结算。
-5. 系统结算同样保存快照、事件和版本；GameEngine 只计算规则转换，事务编排层负责原子持久化。
+1. 通用 `GameDefinition` 保持不变。Blackjack 通过 `resolveSystem` 提供无 Participant 的强制转换，并由 adapter 的 `SystemPhaseHandler` 接入编排。
+2. `prepare` 在首个 Decision 前执行一次初始化结算。玩家结算后若没有下一玩家，同一事务再执行一次庄家结算。每次触发只允许一次系统结算，无法到达 Decision 或终局时中止为 `SYSTEM_PHASE_STALLED`。
+3. `InitializedMatch.firstTurn` 允许为空。READY Match 可以没有首个 Turn；首个 Turn 由初始化系统结算后创建。
+4. 不扩展 `Settlement`。系统结算只追加权威快照和 `decisionId` 为空的 `GameEvent`，并单独递增一次 `stateVersion`。
+5. GameEngine 只计算规则转换，事务编排层负责原子持久化。
 6. 结果结构不扩展，但需把 rank 的通用语义从“恒为 winner”修正为“相对名次”；WIN 的胜者由具体游戏终局规则确定。
 7. 读取 Agent 历史或公开牌桌历史时必须经过游戏可见性投影，不能返回原始权威事件或编码后的权威 State。
 
