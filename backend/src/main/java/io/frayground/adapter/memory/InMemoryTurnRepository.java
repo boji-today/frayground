@@ -19,6 +19,8 @@ public final class InMemoryTurnRepository implements TurnStore {
     if(!e.turnId().equals(r.turnId())) throw new IllegalArgumentException("turn identity cannot change");
     MemoryState s=storage.writeState();
     if(!s.turnMatches.containsKey(e.turnId())) throw new IllegalArgumentException("turn owner cannot change");
+    if(!Objects.equals(s.turns.get(e.turnId()),e)) return false;
+    if(e.baseStateVersion()!=r.baseStateVersion()||!e.requiredParticipants().equals(r.requiredParticipants())) throw new StorageConflictException("Turn base version and required participants cannot change");
     return s.turns.replace(e.turnId(),e,r);
   }
 }

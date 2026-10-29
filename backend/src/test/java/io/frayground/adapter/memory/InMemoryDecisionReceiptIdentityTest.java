@@ -24,6 +24,7 @@ import io.frayground.domain.match.TurnStatus;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionTemplate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,6 +32,35 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryDecisionReceiptIdentityTest {
+  @Test void turnReplacementKeepsItsOriginalBaseAndParticipantsAfterMatchAdvances() {
+    World world=world();
+    for (TurnContext invalid : List.of(
+        turn(world.turnA,world.participantB),turn(world.turnA,world.participantSpare),
+        new TurnContext(world.turnA,1,1,1,SchedulingMode.TURN_BASED_SEQUENTIAL,List.of(world.participantA),TurnStatus.OPEN))) {
+      assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.turns.replace(world.turnAStored,invalid)));
+    }
+    assertEquals(world.turnAStored,world.turns.find(world.turnA).orElseThrow());
+    Match old=world.matchAStored;
+    Match advanced=new Match(old.matchId(),old.roomId(),old.gameKey(),old.status(),1,old.gameEventSeq(),old.currentTurnId(),old.participants(),old.result());
+    assertEquals(Boolean.TRUE,world.tx.execute(s->world.matches.replace(old,advanced)));
+    TurnContext resolved=new TurnContext(world.turnA,1,1,0,SchedulingMode.TURN_BASED_SEQUENTIAL,List.of(world.participantA),TurnStatus.RESOLVED);
+    assertEquals(Boolean.TRUE,world.tx.execute(s->world.turns.replace(world.turnAStored,resolved)));
+    assertEquals(Boolean.FALSE,world.tx.execute(s->world.turns.replace(world.turnAStored,world.turnAStored)));
+    assertEquals(resolved,world.turns.find(world.turnA).orElseThrow());
+  }
+
+  @Test void decisionReplacementKeepsBaseAndAllowsStartingAndFinishing() {
+    World world=world();
+    Decision invalid=decision(world.decisionA,world.matchA,world.turnA,world.participantA,1);
+    assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.decisions.replace(world.decisionAStored,invalid)));
+    assertEquals(world.decisionAStored,world.decisions.find(world.decisionA).orElseThrow());
+    Decision running=new Decision(world.decisionA,world.matchA,world.turnA,world.participantA,DecisionStatus.RUNNING,0,4,UUID.randomUUID(),UUID.randomUUID(),"{}",Instant.EPOCH,Instant.EPOCH.plusSeconds(10),null,null);
+    assertEquals(Boolean.TRUE,world.tx.execute(s->world.decisions.replace(world.decisionAStored,running)));
+    Decision complete=new Decision(world.decisionA,world.matchA,world.turnA,world.participantA,DecisionStatus.COMPLETED,0,4,running.promptVersionId(),running.configVersionId(),running.requestJson(),running.startedAt(),running.deadlineAt(),Instant.EPOCH.plusSeconds(1),null);
+    assertEquals(Boolean.TRUE,world.tx.execute(s->world.decisions.replace(running,complete)));
+    assertEquals(Boolean.FALSE,world.tx.execute(s->world.decisions.replace(running,complete)));
+    assertEquals(complete,world.decisions.find(world.decisionA).orElseThrow());
+  }
   @Test void decisionInsertRejectsUnrequiredParticipantAndVersion() {
     World world=world();
     UUID unrequiredId=UUID.randomUUID();
