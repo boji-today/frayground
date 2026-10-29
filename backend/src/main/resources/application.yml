@@ -25,13 +25,3 @@ frayground:
           max-connections: 8
     system-api-keys:
       deepseek-flash: ""
-
----
-spring:
-  config:
-    activate:
-      on-profile: dev
-
-frayground:
-  storage:
-    mode: memory

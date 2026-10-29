@@ -14,6 +14,8 @@ public class MemoryStorageConfiguration {
   @Bean InMemoryTurnRepository inMemoryTurnRepository(InMemoryStorage s) { return new InMemoryTurnRepository(s); }
   @Bean InMemoryDecisionRepository inMemoryDecisionRepository(InMemoryStorage s) { return new InMemoryDecisionRepository(s); }
   @Bean InMemoryDecisionRecordRepository inMemoryDecisionRecordRepository(InMemoryStorage s) { return new InMemoryDecisionRecordRepository(s); }
+  @Bean InMemoryDecisionInputSnapshotStore inMemoryDecisionInputSnapshotStore(InMemoryStorage s) { return new InMemoryDecisionInputSnapshotStore(s); }
+  @Bean InMemoryDecisionExecutionClaimStore inMemoryDecisionExecutionClaimStore(InMemoryStorage s) { return new InMemoryDecisionExecutionClaimStore(s); }
   @Bean InMemorySnapshotStore inMemorySnapshotStore(InMemoryStorage s) { return new InMemorySnapshotStore(s); }
   @Bean InMemoryGameEventRepository inMemoryGameEventRepository(InMemoryStorage s) { return new InMemoryGameEventRepository(s); }
   @Bean InMemoryRoomEventRepository inMemoryRoomEventRepository(InMemoryStorage s) { return new InMemoryRoomEventRepository(s); }
