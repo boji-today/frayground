@@ -10,13 +10,14 @@ import java.time.Clock;
 import java.util.*;
 import java.util.function.Supplier;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 /** Transactional decision boundaries. Runtime execution occurs outside these methods. */
 public class DecisionExecutionService implements DecisionLifecycle {
   private final RoomStore rooms; private final MatchStore matches; private final TurnStore turns;
   private final DecisionStore decisions; private final DecisionRecordStore records;
-  private final SnapshotStore snapshots; private final DecisionInputSnapshotStore inputs;
+  private final SnapshotStore snapshots; private final GameEventStore gameEvents; private final DecisionInputSnapshotStore inputs;
   private final DecisionExecutionClaimStore claims;
   private final PendingDecisionOutputStore pending;
   private final RoomEventRepository events; private final AgentBindingsReader bindings;
@@ -24,13 +25,63 @@ public class DecisionExecutionService implements DecisionLifecycle {
   private final JsonMapper json;
   private final DecisionModelAudit modelAudit;
   public DecisionExecutionService(RoomStore rooms, MatchStore matches, TurnStore turns,
-      DecisionStore decisions, DecisionRecordStore records, SnapshotStore snapshots,
+      DecisionStore decisions, DecisionRecordStore records, SnapshotStore snapshots, GameEventStore gameEvents,
       DecisionInputSnapshotStore inputs, DecisionExecutionClaimStore claims, PendingDecisionOutputStore pending, RoomEventRepository events, AgentBindingsReader bindings,
       DecisionGameAccess games, Clock clock, Supplier<UUID> ids, JsonMapper json, DecisionModelAudit modelAudit) {
     this.rooms=rooms; this.matches=matches; this.turns=turns; this.decisions=decisions; this.records=records;
-    this.snapshots=snapshots; this.inputs=inputs; this.claims=claims; this.pending=pending; this.events=events; this.bindings=bindings;
+    this.snapshots=snapshots; this.gameEvents=gameEvents; this.inputs=inputs; this.claims=claims; this.pending=pending; this.events=events; this.bindings=bindings;
     this.games=games; this.clock=clock; this.ids=ids; this.json=json; this.modelAudit=modelAudit;
   }
+  @Transactional(transactionManager="gameTransactionManager")
+  public void prepare(UUID roomId) {
+    rooms.lock(roomId);
+    Room room=present(rooms.find(roomId),"ROOM_NOT_FOUND");
+    require(room.health()==RoomHealth.OK,"ROOM_ERROR");
+    require(room.executionStatus()==ExecutionStatus.RUNNING,"ROOM_NOT_RUNNING");
+    Match match=present(matches.find(room.activeMatchId()),"MATCH_NOT_FOUND");
+    require(match.roomId().equals(roomId),"MATCH_ROOM_MISMATCH");
+    require(match.status()==MatchStatus.ACTIVE,"MATCH_NOT_ACTIVE");
+    if (match.currentTurnId()!=null) return;
+    var snapshot=present(snapshots.find(match.matchId(),match.stateVersion()),"SNAPSHOT_NOT_FOUND");
+    SystemAdvance advanced=settleSystem(match,snapshot.state(),match.stateVersion(),match.gameEventSeq(),0);
+    boolean finished=advanced.nextTurn()==null;
+    Match versioned=new Match(match.matchId(),match.roomId(),match.gameKey(),finished?MatchStatus.FINISHED:MatchStatus.ACTIVE,
+        advanced.toVersion(),advanced.eventSequence(),null,match.participants(),advanced.result());
+    replaced(matches.replace(match,versioned));
+    if (!finished) {
+      turns.insert(match.matchId(),advanced.nextTurn());
+      replaced(matches.replace(versioned,new Match(versioned.matchId(),versioned.roomId(),versioned.gameKey(),versioned.status(),
+          versioned.stateVersion(),versioned.gameEventSeq(),advanced.nextTurn().turnId(),versioned.participants(),versioned.result())));
+    }
+    var pendingEvents=new ArrayList<Event>();
+    pendingEvents.add(new Event("SYSTEM_RESOLVED",Map.of("stateVersion",advanced.toVersion())));
+    ExecutionStatus status=room.executionStatus();
+    if (finished) {
+      pendingEvents.add(new Event("MATCH_FINISHED",Map.of("result",json.convertValue(json.valueToTree(advanced.result()),new TypeReference<Map<String,Object>>() {}))));
+      status=ExecutionStatus.PAUSED;
+    }
+    roomEvents(room,pendingEvents,status);
+  }
+  public SystemAdvance settleSystem(Match match, Map<String,Object> state, long fromVersion, long eventSequence, long previousTurnNo) {
+    var applied=games.resolveSystem(match.gameKey(),fromVersion,state,match.participants())
+        .orElseThrow(() -> new IllegalStateException("SYSTEM_PHASE_STALLED"));
+    long version=fromVersion+1;
+    snapshots.append(new StateSnapshot(match.matchId(),version,applied.state(),clock.instant()));
+    long sequence=eventSequence;
+    for (var event:applied.events()) gameEvents.append(new GameEvent(match.matchId(),++sequence,version,null,event.type(),event.eventVersion(),event.payload(),clock.instant()));
+    boolean finished=applied.result().status()!=GameOutcome.ONGOING;
+    TurnContext next=null;
+    if (!finished) {
+      var plan=applied.nextPlan();
+      require(plan!=null && plan.mode()==SchedulingMode.TURN_BASED_SEQUENTIAL && plan.requiredParticipants().size()==1,"SYSTEM_PHASE_STALLED");
+      UUID participantId=plan.requiredParticipants().get(0);
+      require(match.participants().stream().anyMatch(participant -> participant.participantId().equals(participantId)),"SYSTEM_PHASE_STALLED");
+      long turnNo=previousTurnNo+1;
+      next=new TurnContext(ids.get(),turnNo,games.roundNo(match.gameKey(),turnNo),version,plan.mode(),plan.requiredParticipants(),TurnStatus.OPEN);
+    }
+    return new SystemAdvance(version,sequence,applied.result(),next);
+  }
+  public record SystemAdvance(long toVersion, long eventSequence, GameResult result, TurnContext nextTurn) {}
   static void require(boolean value, String code) { if (!value) throw new IllegalStateException(code); }
   static <T> T present(Optional<T> value, String code) { return value.orElseThrow(() -> new IllegalStateException(code)); }
   static void replaced(boolean value) { if (!value) throw new StorageConflictException("Concurrent replacement failed"); }

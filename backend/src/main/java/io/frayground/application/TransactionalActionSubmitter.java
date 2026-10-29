@@ -65,12 +65,16 @@ public class TransactionalActionSubmitter implements ActionSubmitter {
     long version=match.stateVersion()+1;
     boolean finished=applied.result().status()!=GameOutcome.ONGOING;
     TurnContext next=null;
+    boolean systemFollows=false;
     if (!finished) {
       var plan=Objects.requireNonNull(applied.nextPlan());
-      DecisionExecutionService.require(plan.mode()==SchedulingMode.TURN_BASED_SEQUENTIAL,"SCHEDULING_MODE_NOT_SUPPORTED");
-      DecisionExecutionService.require(plan.requiredParticipants().size()==1 && match.participants().stream().anyMatch(p->p.participantId().equals(plan.requiredParticipants().get(0))),"INVALID_TURN_PLAN");
-      long turnNo=turn.turnNo()+1;
-      next=new TurnContext(ids.get(),turnNo,games.roundNo(match.gameKey(),turnNo),version,plan.mode(),plan.requiredParticipants(),TurnStatus.OPEN);
+      if (plan.requiredParticipants().isEmpty()) systemFollows=true;
+      else {
+        DecisionExecutionService.require(plan.mode()==SchedulingMode.TURN_BASED_SEQUENTIAL,"SCHEDULING_MODE_NOT_SUPPORTED");
+        DecisionExecutionService.require(plan.requiredParticipants().size()==1 && match.participants().stream().anyMatch(p->p.participantId().equals(plan.requiredParticipants().get(0))),"INVALID_TURN_PLAN");
+        long turnNo=turn.turnNo()+1;
+        next=new TurnContext(ids.get(),turnNo,games.roundNo(match.gameKey(),turnNo),version,plan.mode(),plan.requiredParticipants(),TurnStatus.OPEN);
+      }
     }
     ActionSubmissionResult result=new ActionSubmissionResult(SubmissionStatus.EXECUTED,e.actionId(),e.decisionId(),e.matchId(),version,applied.action(),null);
     receipts.saveFinal(e,result);
@@ -81,6 +85,7 @@ public class TransactionalActionSubmitter implements ActionSubmitter {
     for (var event:applied.events()) gameEvents.append(new GameEvent(match.matchId(),++sequence,version,e.decisionId(),event.type(),event.eventVersion(),event.payload(),clock.instant()));
     DecisionExecutionService.replaced(decisions.replace(decision,lifecycle.terminal(decision,DecisionStatus.COMPLETED,null)));
     DecisionExecutionService.replaced(turns.replace(turn,new TurnContext(turn.turnId(),turn.turnNo(),turn.roundNo(),turn.baseStateVersion(),turn.schedulingMode(),turn.requiredParticipants(),TurnStatus.RESOLVED)));
+    GameResult finalResult=applied.result();
     // Advance the owning match version before inserting its next turn: TurnStore
     // validates that the new turn's base version matches the current match.
     // Keep the old turn pointer and event sequence until the final CAS below;
@@ -88,9 +93,20 @@ public class TransactionalActionSubmitter implements ActionSubmitter {
     DecisionExecutionService.replaced(matches.compareAndSetVersion(match.matchId(),match.stateVersion(),version));
     Match advanced=new Match(match.matchId(),match.roomId(),match.gameKey(),match.status(),version,
         match.gameEventSeq(),match.currentTurnId(),match.participants(),match.result());
+    if (systemFollows) {
+      var system=lifecycle.settleSystem(match,applied.state(),version,sequence,turn.turnNo());
+      long playerVersion=version;
+      version=system.toVersion(); sequence=system.eventSequence(); finalResult=system.result();
+      finished=finalResult.status()!=GameOutcome.ONGOING; next=system.nextTurn();
+      if (next!=null) {
+        DecisionExecutionService.replaced(matches.compareAndSetVersion(match.matchId(),playerVersion,version));
+        advanced=new Match(advanced.matchId(),advanced.roomId(),advanced.gameKey(),advanced.status(),version,
+            advanced.gameEventSeq(),advanced.currentTurnId(),advanced.participants(),advanced.result());
+      }
+    }
     if (next!=null) turns.insert(match.matchId(),next);
     Match updated=new Match(match.matchId(),match.roomId(),match.gameKey(),finished?MatchStatus.FINISHED:MatchStatus.ACTIVE,
-        version,sequence,next==null?null:next.turnId(),match.participants(),applied.result());
+        version,sequence,next==null?null:next.turnId(),match.participants(),finalResult);
     DecisionExecutionService.replaced(matches.replace(advanced,updated));
     DecisionRecord record=DecisionExecutionService.present(records.find(e.decisionId()),"DECISION_RECORD_NOT_FOUND");
     DecisionExecutionService.replaced(records.replace(record,new DecisionRecord(record.decisionId(),record.contextBuilderVersion(),record.modelInputJson(),record.modelOutputJson(),
@@ -99,7 +115,7 @@ public class TransactionalActionSubmitter implements ActionSubmitter {
     var roomEvents=new ArrayList<DecisionExecutionService.Event>();
     roomEvents.add(new DecisionExecutionService.Event("DECISION_FINISHED",Map.of("decisionId",e.decisionId().toString(),"status","COMPLETED")));
     roomEvents.add(new DecisionExecutionService.Event("ACTION_RESOLVED",Map.of("decisionId",e.decisionId().toString(),"stateVersion",version)));
-    if (finished) roomEvents.add(new DecisionExecutionService.Event("MATCH_FINISHED",Map.of("result",json.convertValue(json.valueToTree(applied.result()),new TypeReference<Map<String,Object>>() {}))));
+    if (finished) roomEvents.add(new DecisionExecutionService.Event("MATCH_FINISHED",Map.of("result",json.convertValue(json.valueToTree(finalResult),new TypeReference<Map<String,Object>>() {}))));
     lifecycle.roomEvents(room,roomEvents,status);
     return CompletableFuture.completedFuture(result);
   }

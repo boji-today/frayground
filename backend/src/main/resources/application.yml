@@ -17,6 +17,8 @@ frayground:
   games:
     connect-four:
       enabled: true
+    blackjack:
+      enabled: false
   model:
     vendors:
       deepseek:

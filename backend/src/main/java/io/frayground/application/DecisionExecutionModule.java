@@ -45,13 +45,14 @@ public class DecisionExecutionModule {
   @Bean DecisionModelAudit decisionModelAudit(DecisionRecordStore records,DecisionStore decisions,MatchStore matches,RoomStore rooms,JsonMapper json) {
     return new DecisionModelAuditService(records,decisions,matches,rooms,json);
   }
-  @Bean DecisionGameAccess decisionGameAccess(GameRegistry registry,List<DecisionGameMetadata> metadata,GameEngine engine,JsonMapper json) {
-    return new RegisteredDecisionGameAccess(registry,metadata,engine,json);
+  @Bean DecisionGameAccess decisionGameAccess(GameRegistry registry,List<DecisionGameMetadata> metadata,
+      List<SystemPhaseHandler> systemPhases,GameEngine engine,JsonMapper json) {
+    return new RegisteredDecisionGameAccess(registry,metadata,systemPhases,engine,json);
   }
   @Bean DecisionExecutionService decisionExecutionService(RoomStore rooms,MatchStore matches,TurnStore turns,
-      DecisionStore decisions,DecisionRecordStore records,SnapshotStore snapshots,DecisionInputSnapshotStore inputs,DecisionExecutionClaimStore claims,PendingDecisionOutputStore pending,
+      DecisionStore decisions,DecisionRecordStore records,SnapshotStore snapshots,GameEventStore gameEvents,DecisionInputSnapshotStore inputs,DecisionExecutionClaimStore claims,PendingDecisionOutputStore pending,
       RoomEventRepository events,AgentBindingsReader bindings,DecisionGameAccess games,Clock clock,Supplier<UUID> ids,JsonMapper json,DecisionModelAudit audit) {
-    return new DecisionExecutionService(rooms,matches,turns,decisions,records,snapshots,inputs,claims,pending,events,bindings,games,clock,ids,json,audit);
+    return new DecisionExecutionService(rooms,matches,turns,decisions,records,snapshots,gameEvents,inputs,claims,pending,events,bindings,games,clock,ids,json,audit);
   }
   @Bean TransactionalActionSubmitter transactionalActionSubmitter(RoomStore rooms,MatchStore matches,TurnStore turns,
       DecisionStore decisions,DecisionRecordStore records,SnapshotStore snapshots,GameEventStore gameEvents,

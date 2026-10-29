@@ -14,11 +14,12 @@ public final class RegisteredDecisionGameAccess implements DecisionGameAccess {
   private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
   private final GameRegistry registry;
   private final Map<GameKey, DecisionGameMetadata> metadata;
+  private final Map<GameKey, SystemPhaseHandler> systemPhases;
   private final GameEngine engine;
   private final JsonMapper json;
 
   public RegisteredDecisionGameAccess(GameRegistry registry, Collection<DecisionGameMetadata> metadata,
-      GameEngine engine, JsonMapper json) {
+      Collection<SystemPhaseHandler> systemPhases, GameEngine engine, JsonMapper json) {
     this.registry = Objects.requireNonNull(registry);
     this.engine = Objects.requireNonNull(engine);
     this.json = Objects.requireNonNull(json);
@@ -26,6 +27,10 @@ public final class RegisteredDecisionGameAccess implements DecisionGameAccess {
     for (var item : metadata) if (indexed.putIfAbsent(item.gameKey(), item) != null)
       throw new IllegalArgumentException("duplicate game metadata");
     this.metadata = Map.copyOf(indexed);
+    Map<GameKey, SystemPhaseHandler> phases = new HashMap<>();
+    for (var handler : systemPhases) if (phases.putIfAbsent(handler.gameKey(), handler) != null)
+      throw new IllegalArgumentException("duplicate system phase");
+    this.systemPhases = Map.copyOf(phases);
   }
   private DecisionGameMetadata metadata(GameKey key) {
     var value = metadata.get(key);
@@ -53,6 +58,26 @@ public final class RegisteredDecisionGameAccess implements DecisionGameAccess {
         json.writeValueAsString(r.codec().encodeObservation(r.definition().observe(state, participantId))),
         json.writeValueAsString(specMap), spec.actionSchemaId(),
         json.writeValueAsString(r.schemaProvider().schema(spec.actionSchemaId())), m.rulesText());
+  }
+  @Override public Optional<Applied> resolveSystem(GameKey key, long version, Map<String,Object> state, List<Participant> participants) {
+    SystemPhaseHandler handler = systemPhases.get(key);
+    if (handler == null) return Optional.empty();
+    return resolveSystemRegistered(registration(key), handler, version, state, participants);
+  }
+  private <S extends GameState, A extends GameAction, O extends GameObservation> Optional<Applied> resolveSystemRegistered(
+      GameRegistration<S,A,O> registration, SystemPhaseHandler handler, long version, Map<String,Object> encoded,
+      List<Participant> participants) {
+    S state = registration.codec().decodeState(decodeState(version, encoded));
+    var resolution = handler.resolve(state);
+    if (resolution.isEmpty()) return Optional.empty();
+    if (!state.getClass().isInstance(resolution.get().newState())) throw new IllegalArgumentException("SYSTEM_STATE");
+    @SuppressWarnings("unchecked") S nextState = (S) resolution.get().newState();
+    var next = resolution.get().result().status() == GameOutcome.ONGOING
+        ? registration.definition().nextTurn(nextState, participants) : null;
+    var events = resolution.get().events().stream().map(event -> new GameEventDraft(event.type(),
+        event.eventVersion(), json.convertValue(json.valueToTree(event.payload()), MAP))).toList();
+    var encodedNext = json.convertValue(registration.codec().encodeState(nextState), MAP);
+    return Optional.of(new Applied(encodeState(encodedNext), Map.of(), events, resolution.get().result(), next));
   }
   @Override public Applied apply(GameKey key, long version, Map<String,Object> state, List<Participant> participants,
       UUID participantId, Map<String,Object> action) {
