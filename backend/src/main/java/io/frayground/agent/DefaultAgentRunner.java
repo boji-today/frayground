@@ -31,15 +31,16 @@ public final class DefaultAgentRunner implements AgentRunner {
     if (claim!=null) return CompletableFuture.completedFuture(new DecisionOutcome.NotSubmitted(new RuntimeError(claim,claim)));
     if (!spec.mode().equals("ACTION_SELECTION")) return failed(id,"ACTION_MODE_NOT_SUPPORTED");
     if (cancellation.isCancelled()) return failed(id,"DECISION_CANCELLED");
-    CompletionStage<RuntimeOutcome> pending;
-    try { pending=Objects.requireNonNull(runtime.decide(fixed,cancellation)); }
+    CompletionStage<RuntimeExecutionResult> pending;
+    try { pending=Objects.requireNonNull(runtime.decideWithEvidence(fixed,cancellation)); }
     catch (RuntimeException e) { return failed(id,"RUNTIME_ERROR"); }
-    return pending.handle((candidate,error)-> error==null ? candidate : new RuntimeOutcome.Failed(new RuntimeError("RUNTIME_ERROR","Runtime failed")))
-        .thenCompose(candidate -> cancellation.isCancelled() ? failed(id,"DECISION_CANCELLED") : handle(fixed,spec,candidate,cancellation));
+    return pending.handle((result,error)-> error==null ? result : new RuntimeExecutionResult(new RuntimeOutcome.Failed(new RuntimeError("RUNTIME_ERROR","Runtime failed")),null))
+        .thenCompose(result -> cancellation.isCancelled() ? failed(id,new RuntimeError("DECISION_CANCELLED","DECISION_CANCELLED"),result.modelResult()) : handle(fixed,spec,result,cancellation));
   }
-  private CompletionStage<DecisionOutcome> handle(RuntimeInput fixed,DecisionInputReader.ParsedSpecification spec,RuntimeOutcome candidate,CancellationSignal cancellation) {
+  private CompletionStage<DecisionOutcome> handle(RuntimeInput fixed,DecisionInputReader.ParsedSpecification spec,RuntimeExecutionResult execution,CancellationSignal cancellation) {
     UUID id=fixed.publicRequest().decisionId();
-    if (candidate instanceof RuntimeOutcome.Failed failed) return failed(id,failed.error());
+    RuntimeOutcome candidate=execution.outcome();
+    if (candidate instanceof RuntimeOutcome.Failed failed) return failed(id,failed.error(),execution.modelResult());
     if (!(candidate instanceof RuntimeOutcome.SelectedAction selected)) return failed(id,"ACTION_MODE_NOT_SUPPORTED");
     for (var option:spec.options()) {
       if (option.get("selectedActionId").asString().equals(selected.selectedActionId())) {
@@ -47,7 +48,7 @@ public final class DefaultAgentRunner implements AgentRunner {
         var r=fixed.publicRequest();
         var envelope=new ActionEnvelope("1.0",r.matchId(),r.participantId(),r.turnId(),id,ids.get(),r.stateVersion(),action);
         var pending=lifecycle.pendingOutputs();
-        var output=pending.stageAndAcquire(new PendingDecisionOutputStore.Candidate(id,candidate,envelope,json.writeValueAsString(action)));
+        var output=pending.stageAndAcquire(new PendingDecisionOutputStore.Candidate(id,candidate,envelope,json.writeValueAsString(action),execution.modelResult()));
         return recoverAcquired(id,cancellation,pending,output);
       }
     }
@@ -62,14 +63,16 @@ public final class DefaultAgentRunner implements AgentRunner {
   private CompletionStage<DecisionOutcome> recoverAcquired(UUID id,CancellationSignal cancellation,PendingDecisionOutputStore pending,PendingDecisionOutputStore.Output output) {
     try {
       if (cancellation.isCancelled()) {
-        output=pending.replaceAcquired(new PendingDecisionOutputStore.Failure(id,new RuntimeError("DECISION_CANCELLED","DECISION_CANCELLED")));
+        output=pending.replaceAcquired(new PendingDecisionOutputStore.Failure(id,new RuntimeError("DECISION_CANCELLED","DECISION_CANCELLED"),output instanceof PendingDecisionOutputStore.Candidate c ? c.evidence() : ((PendingDecisionOutputStore.Failure)output).evidence()));
       }
       if (output instanceof PendingDecisionOutputStore.Failure failed) {
+        if (failed.evidence()!=null) lifecycle.modelAudit().recordOutput(id,failed.evidence());
         RuntimeError result=lifecycle.runtimeFailed(id,failed.error().code());
         pending.release(id,true);
         return CompletableFuture.completedFuture(new DecisionOutcome.NotSubmitted(result));
       }
       var candidate=(PendingDecisionOutputStore.Candidate)output;
+      if (candidate.evidence()!=null) lifecycle.modelAudit().recordOutput(id,candidate.evidence());
       if (!lifecycle.recordCandidate(id,candidate.candidate(),candidate.actionJson()) || !lifecycle.saveExecutionEnvelope(candidate.envelope())) {
         pending.release(id,true);
         return CompletableFuture.completedFuture(new DecisionOutcome.NotSubmitted(new RuntimeError("DECISION_NOT_RUNNING","Decision has ended")));
@@ -84,8 +87,9 @@ public final class DefaultAgentRunner implements AgentRunner {
   private CompletionStage<DecisionOutcome> failed(UUID id,String code) {
     return failed(id,new RuntimeError(code,code));
   }
-  private CompletionStage<DecisionOutcome> failed(UUID id,RuntimeError error) {
-    var pending=lifecycle.pendingOutputs(); var output=pending.stageAndAcquire(new PendingDecisionOutputStore.Failure(id,error));
+  private CompletionStage<DecisionOutcome> failed(UUID id,RuntimeError error) { return failed(id,error,null); }
+  private CompletionStage<DecisionOutcome> failed(UUID id,RuntimeError error,ModelInvocationResult evidence) {
+    var pending=lifecycle.pendingOutputs(); var output=pending.stageAndAcquire(new PendingDecisionOutputStore.Failure(id,error,evidence));
     return recoverAcquired(id,()->false,pending,output);
   }
 }

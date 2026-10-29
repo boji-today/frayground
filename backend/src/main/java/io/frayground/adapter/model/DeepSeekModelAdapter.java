@@ -18,6 +18,7 @@ import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Clock;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -49,12 +50,17 @@ public final class DeepSeekModelAdapter implements ModelAdapter {
   private final VendorHttpPool pool;
   private final ModelCredentialProvider credentials;
   private final URI baseUrl;
+  private final Clock clock;
 
   public DeepSeekModelAdapter(
       VendorHttpPool pool, ModelCredentialProvider credentials, URI baseUrl) {
+    this(pool, credentials, baseUrl, Clock.systemUTC());
+  }
+  public DeepSeekModelAdapter(VendorHttpPool pool, ModelCredentialProvider credentials, URI baseUrl, Clock clock) {
     this.pool = pool;
     this.credentials = credentials;
     this.baseUrl = baseUrl;
+    this.clock = clock;
   }
 
   @Override
@@ -74,14 +80,30 @@ public final class DeepSeekModelAdapter implements ModelAdapter {
     if (rejected != null) {
       return CompletableFuture.completedFuture(failure(rejected, started));
     }
+    long budgetMs = budget(request);
+    if (budgetMs <= 0 || cancellation.isCancelled()) return CompletableFuture.completedFuture(failure(error(cancellation.isCancelled()?"DECISION_CANCELLED":"DECISION_EXPIRED", "decision is no longer active"), started));
     String apiKey = credentials.resolve(request.configuration()).orElse(null);
     if (apiKey == null) {
       return CompletableFuture.completedFuture(failure(configurationError(), started));
     }
-    SimpleHttpRequest http = httpRequest(request, apiKey);
-    long budgetMs = request.configuration().decisionTimeoutMs();
+    budgetMs = budget(request);
+    if (budgetMs <= 0 || cancellation.isCancelled()) return CompletableFuture.completedFuture(failure(error(cancellation.isCancelled()?"DECISION_CANCELLED":"DECISION_EXPIRED", "decision is no longer active"), started));
+    SimpleHttpRequest http = httpRequest(request, apiKey, budgetMs);
     return pool.execute(http, budgetMs)
-        .handle((response, error) -> toResult(response, error, started));
+        .handle((response, error) -> {
+          ModelInvocationResult normalized=response==null
+              ? toResult(null,error,started)
+              : toResult(response,null,started);
+          if (cancellation.isCancelled()) return withError(normalized,error("DECISION_CANCELLED","decision was cancelled"));
+          if (request.deadlineAt()!=null && !clock.instant().isBefore(request.deadlineAt()))
+            return withError(normalized,error("DECISION_EXPIRED","decision expired"));
+          return normalized;
+        });
+  }
+
+  private static ModelInvocationResult withError(ModelInvocationResult result,RuntimeError error) {
+    return new ModelInvocationResult(result.providerRequestId(),result.actualModel(),result.content(),result.toolArguments(),
+        result.finishReason(),result.usage(),result.latency(),error);
   }
 
   private RuntimeError reject(ModelRequest request, CancellationSignal cancellation) {
@@ -116,7 +138,7 @@ public final class DeepSeekModelAdapter implements ModelAdapter {
     return null;
   }
 
-  private SimpleHttpRequest httpRequest(ModelRequest request, String apiKey) {
+  private SimpleHttpRequest httpRequest(ModelRequest request, String apiKey, long budgetMs) {
     ModelConfiguration configuration = request.configuration();
     boolean strictTool = "STRICT_TOOL".equals(configuration.outputStrategy());
     JsonNode schema = DeepSeekPayloads.schema(request.outputSchemaJson()).orElseThrow();
@@ -133,7 +155,6 @@ public final class DeepSeekModelAdapter implements ModelAdapter {
         strictTool ? null : new DeepSeekChatRequest.ResponseFormat("json_object"),
         strictTool ? List.of(tool(schema)) : null,
         strictTool ? toolChoice() : null);
-    long budgetMs = configuration.decisionTimeoutMs();
     String path = strictTool ? "/beta/chat/completions" : "/chat/completions";
     return SimpleRequestBuilder.post(endpoint(path))
         .setHeader("Authorization", "Bearer " + apiKey)
@@ -143,6 +164,13 @@ public final class DeepSeekModelAdapter implements ModelAdapter {
             .setResponseTimeout(budgetMs, java.util.concurrent.TimeUnit.MILLISECONDS)
             .build())
         .build();
+  }
+
+  private long budget(ModelRequest request) {
+    long configured=request.configuration().decisionTimeoutMs();
+    if (request.deadlineAt()==null) return configured;
+    long remaining=java.time.Duration.between(clock.instant(),request.deadlineAt()).toMillis();
+    return Math.min(configured,remaining);
   }
 
   private ModelInvocationResult toResult(

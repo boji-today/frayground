@@ -212,7 +212,7 @@ class DecisionExecutionIntegrationTest {
   }
   @ParameterizedTest
   @ValueSource(strings={"receipt.saveFinal","settlement.save","snapshot.append","gameEvent.append","decision.replace",
-      "record.replace","turn.replace","turn.insert","match.replace","room.replace","roomEvent.append"})
+      "record.replace","turn.replace","turn.insert","match.compareAndSetVersion","match.replace","room.replace","roomEvent.append"})
   void everySettlementWriteFailureRollsBack(String fault) {
     Fixture f=fixture(); var s=lifecycle.start(f.room.roomId()); var roomBefore=rooms.find(f.room.roomId()).orElseThrow();
     var e=new ActionEnvelope("1.0",s.matchId(),s.participantId(),s.turnId(),s.decisionId(),UUID.randomUUID(),0,Map.of("type","place_disc","column",0));
@@ -247,7 +247,10 @@ class DecisionExecutionIntegrationTest {
       Callable<ActionSubmissionResult> task=()->{ ready.countDown(); go.await(); return submitter.submit(e).toCompletableFuture().join(); };
       var a=pool.submit(task); var b=pool.submit(task); assertTrue(ready.await(5,TimeUnit.SECONDS)); go.countDown();
       assertEquals(a.get(5,TimeUnit.SECONDS),b.get(5,TimeUnit.SECONDS));
-      assertEquals(1,matches.find(s.matchId()).orElseThrow().stateVersion());
+      var advanced=matches.find(s.matchId()).orElseThrow();
+      assertEquals(1,advanced.stateVersion());
+      var next=turns.find(advanced.currentTurnId()).orElseThrow();
+      assertEquals(advanced.stateVersion(),next.baseStateVersion()); assertEquals(TurnStatus.OPEN,next.status());
       assertTrue(settlements.findByTurnId(s.turnId()).isPresent());
     } finally { pool.shutdownNow(); }
   }
@@ -294,13 +297,32 @@ class DecisionExecutionIntegrationTest {
   }
   @Test void roomCannotStartOrCancelAnotherRoomsMatch() {
     Fixture a=fixture(), b=fixture();
-    new TransactionTemplate(gameTransactionManager).executeWithoutResult(tx->{ var old=rooms.find(a.room.roomId()).orElseThrow();
-      assertTrue(rooms.replace(old,new Room(old.roomId(),old.revision(),old.eventSeq(),b.match.matchId(),old.executionMode(),old.executionStatus(),old.health(),old.healthError()))); });
-    var room=rooms.find(a.room.roomId()).orElseThrow(); var match=matches.find(b.match.matchId()).orElseThrow();
-    assertThrows(IllegalStateException.class,()->lifecycle.start(a.room.roomId()));
-    assertThrows(IllegalStateException.class,()->lifecycle.cancel(a.room.roomId(),UUID.randomUUID()));
-    assertEquals(room,rooms.find(a.room.roomId()).orElseThrow()); assertEquals(match,matches.find(b.match.matchId()).orElseThrow());
-    assertTrue(decisions.findByTurn(match.currentTurnId()).isEmpty());
+    var foreign=lifecycle.start(b.room.roomId());
+    Room roomA=rooms.find(a.room.roomId()).orElseThrow(), roomB=rooms.find(b.room.roomId()).orElseThrow();
+    Match matchA=matches.find(a.match.matchId()).orElseThrow(), matchB=matches.find(b.match.matchId()).orElseThrow();
+    TurnContext turnB=turns.find(foreign.turnId()).orElseThrow();
+    var eventsA=roomEvents.readAfter(roomA.roomId(),0,100); var eventsB=roomEvents.readAfter(roomB.roomId(),0,100);
+
+    assertThrows(StorageConflictException.class,()->new TransactionTemplate(gameTransactionManager).executeWithoutResult(tx->{
+      assertTrue(rooms.replace(roomA,new Room(roomA.roomId(),roomA.revision(),roomA.eventSeq(),matchB.matchId(),roomA.executionMode(),roomA.executionStatus(),roomA.health(),roomA.healthError())));
+    }));
+    assertEquals(roomA,rooms.find(roomA.roomId()).orElseThrow());
+    assertEquals(roomB,rooms.find(roomB.roomId()).orElseThrow());
+    assertEquals(matchA,matches.find(matchA.matchId()).orElseThrow()); assertEquals(matchB,matches.find(matchB.matchId()).orElseThrow());
+
+    faultGate.projectedRoomId=roomA.roomId(); faultGate.projectedActiveMatchId=matchB.matchId();
+    try {
+      var startError=assertThrows(IllegalStateException.class,()->lifecycle.start(roomA.roomId()));
+      assertEquals("MATCH_ROOM_MISMATCH",startError.getMessage());
+      var cancelError=assertThrows(IllegalStateException.class,()->lifecycle.cancel(roomA.roomId(),UUID.randomUUID()));
+      assertEquals("MATCH_ROOM_MISMATCH",cancelError.getMessage());
+    } finally { faultGate.projectedRoomId=null; faultGate.projectedActiveMatchId=null; }
+
+    assertEquals(roomA,rooms.find(roomA.roomId()).orElseThrow()); assertEquals(roomB,rooms.find(roomB.roomId()).orElseThrow());
+    assertEquals(matchA,matches.find(matchA.matchId()).orElseThrow()); assertEquals(matchB,matches.find(matchB.matchId()).orElseThrow());
+    assertEquals(turnB,turns.find(turnB.turnId()).orElseThrow());
+    assertEquals(DecisionStatus.RUNNING,decisions.find(foreign.decisionId()).orElseThrow().status());
+    assertEquals(eventsA,roomEvents.readAfter(roomA.roomId(),0,100)); assertEquals(eventsB,roomEvents.readAfter(roomB.roomId(),0,100));
   }
   @Test void numericCategoryIsPartOfIdempotencyInBothDirections() {
     for (boolean decimalFirst:List.of(false,true)) {
@@ -408,13 +430,38 @@ class DecisionExecutionIntegrationTest {
     assertEquals(DecisionStatus.RUNNING,decisions.find(s.decisionId()).orElseThrow().status());
     assertEquals(SubmissionStatus.EXECUTED,submitter.submit(envelope).toCompletableFuture().join().status());
   }
-  @Test void oldReceiptReplaysAfterRoomPointsAtAnotherMatch() {
+  @Test void oldReceiptReplaysAfterSameRoomMatchReset() {
     Fixture f=fixture(); var s=lifecycle.start(f.room.roomId()); var e=new ActionEnvelope("1.0",s.matchId(),s.participantId(),s.turnId(),s.decisionId(),UUID.randomUUID(),0,Map.of("type","place_disc","column",0));
-    var original=submitter.submit(e).toCompletableFuture().join(); Fixture other=fixture();
-    new TransactionTemplate(gameTransactionManager).executeWithoutResult(tx->{var old=rooms.find(f.room.roomId()).orElseThrow();
-      assertTrue(rooms.replace(old,new Room(old.roomId(),old.revision(),old.eventSeq(),other.match.matchId(),old.executionMode(),old.executionStatus(),old.health(),old.healthError())));});
+    var original=submitter.submit(e).toCompletableFuture().join();
+    var oldParticipants=f.match.participants();
+    var participants=oldParticipants.stream().map(p->new Participant(UUID.randomUUID(),p.agentId(),p.seatKey())).toList();
+    var oldParticipantIds=oldParticipants.stream().map(Participant::participantId).collect(java.util.stream.Collectors.toSet());
+    var newParticipantIds=participants.stream().map(Participant::participantId).collect(java.util.stream.Collectors.toSet());
+    assertTrue(Collections.disjoint(oldParticipantIds,newParticipantIds));
+    for (var oldParticipant:oldParticipants) {
+      var resetParticipant=participants.stream().filter(p->p.seatKey().equals(oldParticipant.seatKey())).findFirst().orElseThrow();
+      assertEquals(oldParticipant.agentId(),resetParticipant.agentId());
+      assertNotEquals(oldParticipant.participantId(),resetParticipant.participantId());
+    }
+    var initialized=new RegisteredMatchFactory(registry,json,clock,UUID::randomUUID).create(f.room.roomId(),f.match.gameKey(),participants);
+    new TransactionTemplate(gameTransactionManager).executeWithoutResult(tx->{
+      Match old=matches.find(f.match.matchId()).orElseThrow();
+      TurnContext oldCurrent=turns.find(old.currentTurnId()).orElseThrow();
+      if (oldCurrent.status()==TurnStatus.OPEN)
+        assertTrue(turns.replace(oldCurrent,new TurnContext(oldCurrent.turnId(),oldCurrent.turnNo(),oldCurrent.roundNo(),oldCurrent.baseStateVersion(),oldCurrent.schedulingMode(),oldCurrent.requiredParticipants(),TurnStatus.CANCELLED)));
+      assertTrue(matches.replace(old,new Match(old.matchId(),old.roomId(),old.gameKey(),MatchStatus.ABORTED,old.stateVersion(),old.gameEventSeq(),null,old.participants(),old.result())));
+      matches.insert(initialized.match()); turns.insert(initialized.match().matchId(),initialized.firstTurn());
+      snapshots.append(initialized.initialSnapshot());
+      Room room=rooms.find(f.room.roomId()).orElseThrow();
+      assertTrue(rooms.replace(room,new Room(room.roomId(),room.revision(),room.eventSeq(),initialized.match().matchId(),room.executionMode(),ExecutionStatus.PAUSED,room.health(),room.healthError())));
+    });
     assertEquals(original,submitter.submit(e).toCompletableFuture().join());
-    assertEquals(0,matches.find(other.match.matchId()).orElseThrow().stateVersion());
+    assertEquals(MatchStatus.ABORTED,matches.find(f.match.matchId()).orElseThrow().status());
+    assertEquals(1,matches.find(f.match.matchId()).orElseThrow().stateVersion());
+    assertEquals(1,settlements.findByTurnId(s.turnId()).orElseThrow().toVersion());
+    Match active=matches.find(initialized.match().matchId()).orElseThrow();
+    assertEquals(0,active.stateVersion()); assertEquals(TurnStatus.OPEN,turns.find(active.currentTurnId()).orElseThrow().status());
+    assertEquals(0,turns.find(active.currentTurnId()).orElseThrow().baseStateVersion());
   }
   @Test void submitFailureRetainsEnvelopeForRetryWithoutAnotherRuntimeInvocation() {
     Fixture f=fixture(); var s=lifecycle.start(f.room.roomId()); var calls=new AtomicInteger();
@@ -609,7 +656,7 @@ class DecisionExecutionIntegrationTest {
     return new Fixture(room,active);
   }
   record Fixture(Room room,Match match) {}
-  static class FaultGate { volatile boolean fail; volatile String target; volatile String falseTarget; }
+  static class FaultGate { volatile boolean fail; volatile String target; volatile String falseTarget; volatile UUID projectedRoomId; volatile UUID projectedActiveMatchId; }
   static class BindingSource implements AgentBindingsReader {
     final AtomicInteger version=new AtomicInteger(1); final Clock clock;
     BindingSource(Clock clock) { this.clock=clock; }
@@ -641,7 +688,15 @@ class DecisionExecutionIntegrationTest {
         if (Objects.equals(gate.falseTarget,name+"."+method.getName())) return false;
         if ((gate.fail && name.equals("gameEvent") && method.getName().equals("append")) || Objects.equals(gate.target,name+"."+method.getName()))
           throw new IllegalStateException("injected "+name+"."+method.getName());
-        try { return method.invoke(delegate,args); } catch (java.lang.reflect.InvocationTargetException e) { throw e.getCause(); }
+        try {
+          Object result=method.invoke(delegate,args);
+          if (name.equals("room") && method.getName().equals("find") && args!=null && Objects.equals(args[0],gate.projectedRoomId)
+              && result instanceof Optional<?> found && found.isPresent()) {
+            Room room=(Room)found.get();
+            return Optional.of(new Room(room.roomId(),room.revision(),room.eventSeq(),gate.projectedActiveMatchId,room.executionMode(),room.executionStatus(),room.health(),room.healthError()));
+          }
+          return result;
+        } catch (java.lang.reflect.InvocationTargetException e) { throw e.getCause(); }
       });
     }
     @Bean @Primary RoomStore roomStore(InMemoryRoomRepository d,FaultGate g) { return wrap(RoomStore.class,d,g,"room"); }

@@ -1,6 +1,6 @@
 # Agent 协议、模型输出与记忆边界
 
-> 已采纳设计，待实现。Envelope 的完整 Schema 与示例在 [OpenAPI](openapi.yaml)；状态机以[领域模型](03-domain-model.md)为准，存储约束以[持久化设计](05-persistence.md)为准。本文件解释职责，不维护第二套字段定义。
+> 已采纳设计；本次工作接通有限的本地 LLM 执行路径。Envelope 的完整 Schema 与示例在 [OpenAPI](openapi.yaml)；状态机以[领域模型](03-domain-model.md)为准，存储约束以[持久化设计](05-persistence.md)为准。本文件解释职责，不维护第二套字段定义。
 
 ## 1. Envelope 与 Payload
 
@@ -68,7 +68,7 @@ ModelMessage 是平台自己的简单角色/文本对象，由 ModelAdapter 转�
 
 MVP RuntimeOutcome 为 SelectedAction、StructuredAction 或 Failed，不直接修改 Match。DecisionOutcome.Submitted 带上候选和权威回执；NotSubmitted 表示没有提交动作。未来远程异步提交可增加 SubmittedAction(actionId, receipt) 分支：远程 SDK 已经提交时，Runner 只观察原回执，不生成另一个 actionId 再提交；与本地 SelectedAction / StructuredAction 分支明确区分。
 
-AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：接收固定请求与绑定材料 → 选择 Runtime → 获得候选 → 解析、校验 → 构造 Envelope → ActionSubmitter → 返回并记录回执。未来的 LlmAgentRuntime 将在其中使用 ContextBuilder 和 ModelAdapter；当前 MockAgentRuntime 直接返回首个测试候选。事务性的动作提交独立于运行机制。
+AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：接收固定请求与绑定材料 → 按固定 RuntimeType 路由 → 获得候选与可选模型证据 → 构造 Envelope → ActionSubmitter → 返回并记录回执。MockAgentRuntime 直接返回首个测试候选；LlmAgentRuntime 只支持 STATELESS + ACTION_SELECTION，先审计实际上下文、selection Schema 和非敏感参数，再单次调用 ModelAdapter，并严格解析输出。输入/输出审计沿用 DecisionRecord 的现有字段，CAS 更新保留回执与已有错误。事务性的动作提交独立于运行机制。
 
 未来 RemoteHttpAgentRuntime 复用固定 DecisionRequest 与提交结果，第三方内部可用 Python、工具、工作流或自有模型；平台只等待协议结果。其内部策略、推理、Key 不要求上传，本地模型配置与 PromptVersion 可为空或由非敏感 agentVersion 代替。
 
@@ -96,9 +96,9 @@ AgentRunner 是一次决策的编排器，不是另一套大型 Agent 框架：�
 
 依据：[Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)、[JSON Output](https://api-docs.deepseek.com/guides/json_mode/)、[Tool Calls](https://api-docs.deepseek.com/guides/tool_calls/)、[Responses](https://api-docs.deepseek.com/guides/responses_api/)。strict 的 Schema 子集不能直接等同于完整 2020-12；适配器只下发其支持的关键字，本地仍检查完整 Schema。Tool Calling 在此仅用作动作参数输出通道，不运行任意工具，不追加第二次总结调用。
 
-通用优先顺序是原生 Schema → 已允许的 strict tools → JSON Mode → 显式兼容的文本 JSON；根据 capabilities 和配置在发请求前选定。DeepSeek 默认跳过未确认或 Beta 能力，不进行“400 后自动换格式重试”。任何模式都只解析一次完整 JSON 对象；空、非法、缺字段、错误枚举、多个工具调用、拒绝、finish_reason=length 均失败暂停。
+运行时依据配置与 capabilities 在发请求前校验并固定模式；当前接入默认 JSON_MODE，STRICT_TOOL 仅在配置显式 allowBeta 且适配器支持时可用。不会自动降级或重试。任何模式都只解析一次完整 JSON 对象；空、非法、代码块、重复字段、额外字段、错误枚举、多个工具调用、拒绝、finish_reason=length 均失败暂停。
 
-默认请求：model=deepseek-flash、thinking.type=disabled、temperature=0、max_tokens=256、stream=false、response_format.type=json_object；连接超时 5 秒，剩余总决策期限限制请求超时。temperature=0 不保证重复输出一致。返回 usage 缺失为 null，不填 0；不保留 reasoning_content。
+默认请求：model=deepseek-flash、thinking.type=disabled、temperature=0、max_tokens=256、stream=false、response_format.type=json_object；连接等待和执行共用剩余总决策期限与配置上限中的较小值。temperature=0 不保证重复输出一致。返回 usage 缺失为 null，不填 0；不保留 reasoning_content。
 
 传输不改变上述契约。每家服务商使用独立的 Apache HttpClient 5 异步客户端、连接池和 I/O reactor。最大连接数来自该家配置；池满时连接获取和请求执行共享同一次 `decisionTimeoutMs`，超时返回 `MODEL_TIMEOUT`，不为等待中的请求另建线程。适配器销毁时关闭客户端和连接池。
 
@@ -141,7 +141,7 @@ Decision ID 是关联身份，不是凭证；可选未来 Turn Token 也不能�
 
 消息外层字段按明确的插入顺序序列化，避免 JVM 间的 Map 迭代顺序差异改变实际消息文本；Schema、观察、候选和约束内部保留固定输入中的字段顺序，不执行通用 JSON 规范化。
 
-审计记录仍须在模型调用前保存实际输入；BuiltContext 不解决该执行时机。LLM 接入还需在模型调用前审计，并按候选动态构造 selection 输出 Schema（区别于游戏 actionSchema），再接入供应商 ModelAdapter。新候选游戏复用通用输入格式，不需要修改游戏字段；数据库只影响后续加载/保存边界，本次 Agent 实现不访问 Store。新模型保留 ModelAdapter 边界。历史/策略记忆、远程或同时回合、多模态仍需各自设计，本次不增加对应类型或接口。
+DecisionModelAudit 在模型调用前保存实际 messages、selection 输出 Schema、builderVersion 与非敏感参数；模型响应返回后由 Runner 持久化归一化输出及用量等证据。LlmAgentRuntime 不访问 Store。新候选游戏复用通用输入格式，不需要修改游戏字段；新模型保留 ModelAdapter 边界。STRUCTURED_ACTION、历史/策略记忆、远程或同时回合、多模态仍需各自设计，本次不增加对应类型或接口。
 
 每次 ContextBuilder 独立构建：平台固定 JSON 输出指令 + 游戏规则说明 + 绑定的玩家 Prompt + 当前合法 Observation + Action Schema/候选 + 必要非敏感上下文。模型不需要 matchId/actionId 等提交身份，不把无关字段发送给模型。明确将玩家文本与平台指令分段；玩家文本无权改变服务端验证。
 

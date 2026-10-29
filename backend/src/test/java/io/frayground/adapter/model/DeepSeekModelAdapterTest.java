@@ -14,6 +14,10 @@ import java.lang.management.ManagementFactory;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -67,6 +72,64 @@ class DeepSeekModelAdapterTest {
     assertThat(json.path("tools").isMissingNode()).isTrue();
     assertThat(result.error()).isNotNull();
     assertThat(result.error().message()).doesNotContain("test-key");
+  }
+
+  @Test
+  void expiredAbsoluteDeadlineDoesNotResolveCredentialsOrSubmitHttp() throws Exception {
+    Captured captured = new Captured(); AtomicInteger resolves = new AtomicInteger();
+    int port=server(200,"{}",captured); VendorHttpPool pool=new VendorHttpPool("deepseek",1); pools.add(pool);
+    var clock=java.time.Clock.fixed(java.time.Instant.parse("2026-10-29T00:00:00Z"),java.time.ZoneOffset.UTC);
+    var adapter=new DeepSeekModelAdapter(pool,key("test-key",resolves),URI.create("http://127.0.0.1:"+port),clock);
+    var config=configuration("JSON_MODE",false,1000,"system:deepseek-flash",16,0);
+    var request=new ModelRequest(List.of(new ModelMessage("user","pick")),"{\"type\":\"object\"}",config,clock.instant().minusMillis(1));
+    ModelInvocationResult result=adapter.invoke(request,OPEN).toCompletableFuture().join();
+    assertThat(result.error().code()).isEqualTo("DECISION_EXPIRED");
+    assertThat(resolves.get()).isZero(); assertThat(captured.count.get()).isZero();
+  }
+
+  @Test
+  void responseEvidenceSurvivesCancellationAndDeadlineAfterServerReceivedRequest() throws Exception {
+    assertLateResponseEvidence("cancel");
+    assertLateResponseEvidence("expire");
+  }
+
+  private void assertLateResponseEvidence(String end) throws Exception {
+    CountDownLatch received=new CountDownLatch(1), release=new CountDownLatch(1);
+    Captured captured=new Captured();
+    int port=blockingServer(captured,received,release);
+    VendorHttpPool pool=new VendorHttpPool("deepseek",1); pools.add(pool);
+    MutableClock clock=new MutableClock(Instant.parse("2026-10-29T00:00:00Z"));
+    DeepSeekModelAdapter adapter=new DeepSeekModelAdapter(pool,key("test-key"),URI.create("http://127.0.0.1:"+port),clock);
+    ModelConfiguration config=configuration("JSON_MODE",false,5_000,"system:deepseek-flash",16,0);
+    Instant deadline=clock.instant().plusSeconds(4);
+    AtomicBoolean cancelled=new AtomicBoolean();
+    var stage=adapter.invoke(new ModelRequest(List.of(new ModelMessage("user","pick")),"{\"type\":\"object\"}",config,deadline),cancelled::get);
+    assertThat(received.await(3,TimeUnit.SECONDS)).isTrue();
+    if (end.equals("cancel")) cancelled.set(true); else clock.set(deadline);
+    release.countDown();
+    ModelInvocationResult result=stage.toCompletableFuture().get(3,TimeUnit.SECONDS);
+    assertThat(result.error().code()).isEqualTo(end.equals("cancel")?"DECISION_CANCELLED":"DECISION_EXPIRED");
+    assertThat(result.providerRequestId()).isEqualTo("req-evidence");
+    assertThat(result.actualModel()).isEqualTo("deepseek-flash");
+    assertThat(result.content()).isEqualTo("{\"selectedActionId\":\"c0\"}");
+    assertThat(result.finishReason()).isEqualTo("stop");
+    assertThat(result.usage().inputTokens()).isEqualTo(17L);
+    assertThat(result.usage().outputTokens()).isEqualTo(3L);
+    assertThat(captured.count.get()).isEqualTo(1);
+  }
+
+  private int blockingServer(Captured captured,CountDownLatch received,CountDownLatch release) throws IOException {
+    HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+    ExecutorService executor=Executors.newSingleThreadExecutor(); server.setExecutor(executor);
+    server.createContext("/",exchange->{
+      captured.count.incrementAndGet(); captured.body=new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8);
+      received.countDown();
+      try { if (!release.await(3,TimeUnit.SECONDS)) throw new IOException("test release timed out"); }
+      catch(InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IOException(interrupted); }
+      byte[] payload="{\"id\":\"req-evidence\",\"model\":\"deepseek-flash\",\"choices\":[{\"message\":{\"content\":\"{\\\"selectedActionId\\\":\\\"c0\\\"}\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":17,\"completion_tokens\":3}}".getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().add("Content-Type","application/json"); exchange.sendResponseHeaders(200,payload.length); exchange.getResponseBody().write(payload); exchange.close();
+    });
+    server.start(); servers.add(server); executors.add(executor); return server.getAddress().getPort();
   }
 
   @Test
@@ -312,5 +375,14 @@ class DeepSeekModelAdapterTest {
     private String path;
     private String authorization;
     private String body = "";
+  }
+
+  private static final class MutableClock extends Clock {
+    private volatile Instant now;
+    private MutableClock(Instant now) { this.now=now; }
+    void set(Instant value) { now=value; }
+    public ZoneId getZone() { return ZoneOffset.UTC; }
+    public Clock withZone(ZoneId zone) { return this; }
+    public Instant instant() { return now; }
   }
 }

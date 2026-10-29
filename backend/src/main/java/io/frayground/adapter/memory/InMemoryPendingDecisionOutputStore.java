@@ -24,7 +24,7 @@ public final class InMemoryPendingDecisionOutputStore implements PendingDecision
     var candidate=(Candidate)output; var e=candidate.envelope();
     if (!candidate.decisionId().equals(e.decisionId())) throw new IllegalArgumentException("Decision identity mismatch");
     var copy=new ActionEnvelope(e.protocolVersion(),e.matchId(),e.participantId(),e.turnId(),e.decisionId(),e.actionId(),e.stateVersion(),MemoryValueCopy.map(e.action()));
-    return new Candidate(candidate.decisionId(),candidate.candidate(),copy,candidate.actionJson());
+    return new Candidate(candidate.decisionId(),candidate.candidate(),copy,candidate.actionJson(),candidate.evidence());
   }
   public synchronized Optional<Output> acquire(UUID id) {
     var output=outputs.get(id);

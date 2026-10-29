@@ -81,10 +81,17 @@ public class TransactionalActionSubmitter implements ActionSubmitter {
     for (var event:applied.events()) gameEvents.append(new GameEvent(match.matchId(),++sequence,version,e.decisionId(),event.type(),event.eventVersion(),event.payload(),clock.instant()));
     DecisionExecutionService.replaced(decisions.replace(decision,lifecycle.terminal(decision,DecisionStatus.COMPLETED,null)));
     DecisionExecutionService.replaced(turns.replace(turn,new TurnContext(turn.turnId(),turn.turnNo(),turn.roundNo(),turn.baseStateVersion(),turn.schedulingMode(),turn.requiredParticipants(),TurnStatus.RESOLVED)));
+    // Advance the owning match version before inserting its next turn: TurnStore
+    // validates that the new turn's base version matches the current match.
+    // Keep the old turn pointer and event sequence until the final CAS below;
+    // the surrounding transaction prevents observers from seeing this interim row.
+    DecisionExecutionService.replaced(matches.compareAndSetVersion(match.matchId(),match.stateVersion(),version));
+    Match advanced=new Match(match.matchId(),match.roomId(),match.gameKey(),match.status(),version,
+        match.gameEventSeq(),match.currentTurnId(),match.participants(),match.result());
     if (next!=null) turns.insert(match.matchId(),next);
     Match updated=new Match(match.matchId(),match.roomId(),match.gameKey(),finished?MatchStatus.FINISHED:MatchStatus.ACTIVE,
         version,sequence,next==null?null:next.turnId(),match.participants(),applied.result());
-    DecisionExecutionService.replaced(matches.replace(match,updated));
+    DecisionExecutionService.replaced(matches.replace(advanced,updated));
     DecisionRecord record=DecisionExecutionService.present(records.find(e.decisionId()),"DECISION_RECORD_NOT_FOUND");
     DecisionExecutionService.replaced(records.replace(record,new DecisionRecord(record.decisionId(),record.contextBuilderVersion(),record.modelInputJson(),record.modelOutputJson(),
         json.writeValueAsString(applied.action()),json.writeValueAsString(Map.of("status","ACCEPTED")),result,record.errorJson(),record.usage(),record.latency(),record.diagnosticsJson())));

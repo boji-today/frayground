@@ -22,13 +22,14 @@ public class DecisionExecutionService implements DecisionLifecycle {
   private final RoomEventRepository events; private final AgentBindingsReader bindings;
   private final DecisionGameAccess games; private final Clock clock; private final Supplier<UUID> ids;
   private final JsonMapper json;
+  private final DecisionModelAudit modelAudit;
   public DecisionExecutionService(RoomStore rooms, MatchStore matches, TurnStore turns,
       DecisionStore decisions, DecisionRecordStore records, SnapshotStore snapshots,
       DecisionInputSnapshotStore inputs, DecisionExecutionClaimStore claims, PendingDecisionOutputStore pending, RoomEventRepository events, AgentBindingsReader bindings,
-      DecisionGameAccess games, Clock clock, Supplier<UUID> ids, JsonMapper json) {
+      DecisionGameAccess games, Clock clock, Supplier<UUID> ids, JsonMapper json, DecisionModelAudit modelAudit) {
     this.rooms=rooms; this.matches=matches; this.turns=turns; this.decisions=decisions; this.records=records;
     this.snapshots=snapshots; this.inputs=inputs; this.claims=claims; this.pending=pending; this.events=events; this.bindings=bindings;
-    this.games=games; this.clock=clock; this.ids=ids; this.json=json;
+    this.games=games; this.clock=clock; this.ids=ids; this.json=json; this.modelAudit=modelAudit;
   }
   static void require(boolean value, String code) { if (!value) throw new IllegalStateException(code); }
   static <T> T present(Optional<T> value, String code) { return value.orElseThrow(() -> new IllegalStateException(code)); }
@@ -77,6 +78,7 @@ public class DecisionExecutionService implements DecisionLifecycle {
   }
   public RuntimeInput runtimeInput(UUID decisionId) { return present(inputs.find(decisionId),"DECISION_INPUT_NOT_FOUND").runtimeInput(); }
   public PendingDecisionOutputStore pendingOutputs() { return pending; }
+  public DecisionModelAudit modelAudit() { return modelAudit; }
   @Transactional(transactionManager="gameTransactionManager")
   public String claimExecution(UUID id,boolean cancelled) {
     Decision d=lockDecision(id);
