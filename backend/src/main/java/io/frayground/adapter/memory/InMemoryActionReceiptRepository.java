@@ -12,7 +12,8 @@ public final class InMemoryActionReceiptRepository implements ActionReceiptStore
     if(!s.matches.containsKey(e.matchId())||!s.decisions.containsKey(e.decisionId())) throw new StorageConflictException("Action owner does not exist");
     if(!e.actionId().equals(r.actionId())||!e.decisionId().equals(r.decisionId())||!e.matchId().equals(r.matchId())) throw new StorageConflictException("Receipt identity does not match envelope");
     Decision decision=s.decisions.get(e.decisionId());
-    if(!e.matchId().equals(decision.matchId())||!e.turnId().equals(decision.turnId())||!e.participantId().equals(decision.participantId())||e.stateVersion()!=decision.stateVersion()) throw new StorageConflictException("Action envelope does not match its decision");
+    // Rejections retain the untrusted request so its identity or version mismatch can be recorded.
+    if(r.status()!=SubmissionStatus.REJECTED&&(!e.matchId().equals(decision.matchId())||!e.turnId().equals(decision.turnId())||!e.participantId().equals(decision.participantId())||e.stateVersion()!=decision.stateVersion())) throw new StorageConflictException("Action envelope does not match its decision");
     var v=new MemoryState.ActionReceipt(copy(e),copy(r));
     var old=s.actionReceipts.putIfAbsent(e.actionId(),v);
     if(old!=null&&(!same(old.envelope(),e)||!same(old.result(),r))) throw new StorageConflictException("Receipt key conflict");

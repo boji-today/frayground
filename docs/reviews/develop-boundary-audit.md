@@ -6,7 +6,7 @@ Review of `security/develop-boundary-validation` against `main` (`71f5da4`) and 
 
 `develop` at `6cba75e` is the feature base. Besides the four named feature commits (Connect Four rules and codec, game registry and match init, in-memory storage, stateless agent runtime), that base also contains domain invariant tests (`8952566`) and the DeepSeek flash adapter (`a658286`).
 
-This branch adds only the three security commits below. It does not change Connect Four rules, codecs, domain records, scheduling, context shape, mock runtime, or DeepSeek request construction.
+The initial review covered the three security commits below. The subsequent receipt correction described here does not change Connect Four rules, codecs, domain records, scheduling, context shape, mock runtime, or DeepSeek request construction.
 
 ## Domain comparison
 
@@ -53,7 +53,7 @@ These checks reject only inconsistent constructed identities. A legal write whos
 `1fea9c2` `fix(memory): bind decision and receipt identities`
 
 - `InMemoryDecisionRepository.insert` keeps the match, turn, and match-participant checks, and also requires the participant to be required for the turn and `stateVersion` to equal the turn base version. It does not add current-turn, status, or retry-uniqueness rules. `replace` and `transition` are unchanged.
-- `InMemoryActionReceiptRepository.saveFinal` requires the envelope match, turn, participant, and base `stateVersion` to equal the decision. The result version is not compared, so an `EXECUTED` receipt can record the settled version.
+- `InMemoryActionReceiptRepository.saveFinal` requires `EXECUTED` and `ACCEPTED` envelope match, turn, participant, and base `stateVersion` to equal the decision. `REJECTED` retains the original request even when those fields differ, while the result must match the envelope's action, decision, and match IDs. The referenced match and decision must each already exist; unlike the planned database contract, this memory adapter cannot retain an unknown-decision rejection. A known decision from another match can be recorded as a rejection, without treating the association as trusted or performing authorization. The result version is not compared, so an `EXECUTED` receipt can record the settled version. Identical saves are idempotent; a changed request or result under the same action ID conflicts.
 - `InMemorySettlementRepository.save` requires each settled participant to equal that decision's participant.
 - `InMemoryDecisionRecordRepository` insert and replace require the decision to exist. A non-null submission result must use that decision id and that decision's match. Its state version is not compared.
 - `InMemoryCommandReceiptRepository.save` requires `result.commandId` to equal the command argument, and the result match to exist in the supplied room. An identical receipt can still be saved again.
@@ -85,4 +85,6 @@ Left open because a fix would change business or API architecture:
 
 ## Verification
 
-The parent ran the full backend suite after each code commit. The final result is 117 tests, 0 failures, 0 errors. The pre-existing `application.yml` modification was not part of any commit.
+For the three initial security commits, the parent reported a final full backend suite result of 117 tests, 0 failures, and 0 errors. That historical result predates the subsequent receipt correction. The pre-existing `application.yml` modification was not part of those commits.
+
+For the receipt correction, the full backend suite passed with 120 tests, 0 failures, 0 errors, and 0 skipped. The run used an isolated Maven output with the current local dev configuration, including the existing MySQL `SELECT 1` test and local mock HTTP endpoints; it did not call a real model. This verifies the current backend tests, not the complete product. The memory adapter's unknown-decision rejection limitation remains as described above.

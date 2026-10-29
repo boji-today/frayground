@@ -51,23 +51,84 @@ class InMemoryDecisionReceiptIdentityTest {
 
   @Test void actionReceiptRejectsCrossedEnvelope() {
     World world=world();
-    rejectEnvelope(world,envelope(world.matchB,world.participantB,world.turnB,world.decisionA,UUID.randomUUID(),0));
-    rejectEnvelope(world,envelope(world.matchA,world.participantA,world.turnB,world.decisionA,UUID.randomUUID(),0));
-    rejectEnvelope(world,envelope(world.matchA,world.participantSpare,world.turnA,world.decisionA,UUID.randomUUID(),0));
-    rejectEnvelope(world,envelope(world.matchA,world.participantA,world.turnA,world.decisionA,UUID.randomUUID(),1));
+    for (SubmissionStatus status : List.of(SubmissionStatus.EXECUTED,SubmissionStatus.ACCEPTED)) {
+      rejectEnvelope(world,envelope(world.matchB,world.participantB,world.turnB,world.decisionA,UUID.randomUUID(),0),status);
+      rejectEnvelope(world,envelope(world.matchA,world.participantA,world.turnB,world.decisionA,UUID.randomUUID(),0),status);
+      rejectEnvelope(world,envelope(world.matchA,world.participantSpare,world.turnA,world.decisionA,UUID.randomUUID(),0),status);
+      rejectEnvelope(world,envelope(world.matchA,world.participantA,world.turnA,world.decisionA,UUID.randomUUID(),1),status);
+    }
     UUID actionId=UUID.randomUUID();
     ActionEnvelope owned=envelope(world.matchA,world.participantA,world.turnA,world.decisionA,actionId,0);
     ActionSubmissionResult executed=new ActionSubmissionResult(SubmissionStatus.EXECUTED,actionId,world.decisionA,world.matchA,1,Map.of("column",1),null);
     world.tx.executeWithoutResult(s->world.actions.saveFinal(owned,executed));
     assertEquals(owned,world.actions.findEnvelope(actionId).orElseThrow());
     assertEquals(executed,world.actions.findByActionId(actionId).orElseThrow());
+    UUID acceptedId=UUID.randomUUID();
+    ActionEnvelope acceptedEnvelope=envelope(world.matchA,world.participantA,world.turnA,world.decisionA,acceptedId,0);
+    ActionSubmissionResult accepted=new ActionSubmissionResult(SubmissionStatus.ACCEPTED,acceptedId,world.decisionA,world.matchA,0,null,null);
+    world.tx.executeWithoutResult(s->world.actions.saveFinal(acceptedEnvelope,accepted));
+    assertEquals(acceptedEnvelope,world.actions.findEnvelope(acceptedId).orElseThrow());
+    assertEquals(accepted,world.actions.findByActionId(acceptedId).orElseThrow());
   }
 
-  private static void rejectEnvelope(World world,ActionEnvelope envelope) {
-    ActionSubmissionResult result=new ActionSubmissionResult(SubmissionStatus.REJECTED,envelope.actionId(),envelope.decisionId(),envelope.matchId(),0,null,"INVALID");
+  @Test void rejectedMismatchedRequestsPreserveBothAggregates() {
+    World world=world();
+    for (ActionEnvelope request : List.of(
+        envelope(world.matchA,world.participantA,world.turnB,world.decisionA,UUID.randomUUID(),0),
+        envelope(world.matchA,world.participantSpare,world.turnA,world.decisionA,UUID.randomUUID(),0),
+        envelope(world.matchB,world.participantB,world.turnB,world.decisionA,UUID.randomUUID(),0))) {
+      ActionSubmissionResult rejected=new ActionSubmissionResult(SubmissionStatus.REJECTED,request.actionId(),request.decisionId(),request.matchId(),0,null,"INVALID");
+      world.tx.executeWithoutResult(s->world.actions.saveFinal(request,rejected));
+      assertEquals(request,world.actions.findEnvelope(request.actionId()).orElseThrow());
+      assertEquals(rejected,world.actions.findByActionId(request.actionId()).orElseThrow());
+    }
+    assertEquals(world.decisionAStored,world.decisions.find(world.decisionA).orElseThrow());
+    assertEquals(world.decisionBStored,world.decisions.find(world.decisionB).orElseThrow());
+    assertEquals(world.matchAStored,world.matches.find(world.matchA).orElseThrow());
+    assertEquals(world.matchBStored,world.matches.find(world.matchB).orElseThrow());
+    assertEquals(world.turnAStored,world.turns.find(world.turnA).orElseThrow());
+    assertEquals(world.turnBStored,world.turns.find(world.turnB).orElseThrow());
+  }
+
+  private static void rejectEnvelope(World world,ActionEnvelope envelope,SubmissionStatus status) {
+    ActionSubmissionResult result=new ActionSubmissionResult(status,envelope.actionId(),envelope.decisionId(),envelope.matchId(),0,status==SubmissionStatus.EXECUTED?Map.of("column",1):null,null);
     assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.actions.saveFinal(envelope,result)));
     assertTrue(world.actions.findByActionId(envelope.actionId()).isEmpty());
     assertTrue(world.actions.findEnvelope(envelope.actionId()).isEmpty());
+  }
+
+  @Test void staleRejectionIsStoredIdempotentlyWithoutChangingState() {
+    World world=world();
+    UUID actionId=UUID.randomUUID();
+    ActionEnvelope stale=envelope(world.matchA,world.participantA,world.turnA,world.decisionA,actionId,1);
+    ActionSubmissionResult rejected=new ActionSubmissionResult(SubmissionStatus.REJECTED,actionId,world.decisionA,world.matchA,0,null,"STALE_STATE");
+    world.tx.executeWithoutResult(s->{world.actions.saveFinal(stale,rejected);world.actions.saveFinal(stale,rejected);});
+    assertEquals(stale,world.actions.findEnvelope(actionId).orElseThrow());
+    assertEquals(rejected,world.actions.findByActionId(actionId).orElseThrow());
+    assertEquals(world.decisionAStored,world.decisions.find(world.decisionA).orElseThrow());
+    assertEquals(world.matchAStored,world.matches.find(world.matchA).orElseThrow());
+    assertEquals(world.turnAStored,world.turns.find(world.turnA).orElseThrow());
+    ActionEnvelope conflicting=envelope(world.matchA,world.participantA,world.turnA,world.decisionA,actionId,2);
+    assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.actions.saveFinal(conflicting,rejected)));
+    ActionSubmissionResult changed=new ActionSubmissionResult(SubmissionStatus.REJECTED,actionId,world.decisionA,world.matchA,0,null,"TURN_MISMATCH");
+    assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.actions.saveFinal(stale,changed)));
+    assertEquals(stale,world.actions.findEnvelope(actionId).orElseThrow());
+    assertEquals(rejected,world.actions.findByActionId(actionId).orElseThrow());
+  }
+
+  @Test void rejectionStillRequiresMatchingReceiptIdentityAndExistingOwners() {
+    World world=world();
+    ActionEnvelope envelope=envelope(world.matchA,world.participantA,world.turnA,world.decisionA,UUID.randomUUID(),1);
+    for (ActionSubmissionResult result : List.of(
+        new ActionSubmissionResult(SubmissionStatus.REJECTED,UUID.randomUUID(),world.decisionA,world.matchA,0,null,"STALE_STATE"),
+        new ActionSubmissionResult(SubmissionStatus.REJECTED,envelope.actionId(),world.decisionB,world.matchA,0,null,"STALE_STATE"),
+        new ActionSubmissionResult(SubmissionStatus.REJECTED,envelope.actionId(),world.decisionA,world.matchB,0,null,"STALE_STATE"))) {
+      assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.actions.saveFinal(envelope,result)));
+    }
+    ActionEnvelope unknown=envelope(world.matchA,world.participantA,world.turnA,UUID.randomUUID(),UUID.randomUUID(),0);
+    ActionSubmissionResult rejected=new ActionSubmissionResult(SubmissionStatus.REJECTED,unknown.actionId(),unknown.decisionId(),unknown.matchId(),0,null,"INVALID");
+    assertThrows(StorageConflictException.class,()->world.tx.executeWithoutResult(s->world.actions.saveFinal(unknown,rejected)));
+    assertTrue(world.actions.findByActionId(envelope.actionId()).isEmpty());
   }
 
   @Test void settlementRejectsCrossedParticipant() {
