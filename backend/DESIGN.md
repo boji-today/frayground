@@ -71,9 +71,12 @@ classDiagram
   class Participant
   class TurnPlan
   class GameResult
+  class GameOutcome
   class ParticipantStanding
   class ValidationResult
   class ActionSpecification
+  class GameEvent
+  class VisibleGameEvent
 
   GameDefinition --> GameKey
   GameDefinition ..> Participant
@@ -84,17 +87,21 @@ classDiagram
   GameDefinition --> ActionSpecification : actions
   GameDefinition --> ValidationResult : validate
   GameDefinition --> Resolution
+  GameDefinition ..> GameEvent : visibleHistory
+  GameDefinition --> VisibleGameEvent : visibleHistory
   Resolution *-- GameState : newState
   Resolution *-- GameEventDraft
   Resolution *-- GameResult
+  GameResult *-- GameOutcome
   GameResult *-- ParticipantStanding
 ```
 
 - `GameState` / `GameAction` / `GameObservation`：规则状态、结构化动作和席位可见观察。
 - `GameDefinition`：定义初始化、观察、动作集合、动作校验、阶段结算和终局判定。
+- `visibleHistory` 读取已记录的 `GameEvent`，按席位返回 `VisibleGameEvent`。
 - `ActionSpecification` 是席位可提交的动作。
 - `ValidationResult` 只表示接受或拒绝，不改变对局。
-- `GameEventDraft` / `Resolution` / `GameResult` / `ParticipantStanding`：规则产生的事件草稿、结算结果、游戏结局和参与者名次。
+- `GameEventDraft` / `Resolution` / `GameResult` / `GameOutcome` / `ParticipantStanding`：规则产生的事件草稿、结算结果、游戏结局、结局状态和参与者名次。
 - `GameKey` / `Participant` / `TurnPlan`：规则版本标识、局内席位和下一阶段计划。
 
 ### 注册、编解码与初始化
@@ -115,20 +122,24 @@ classDiagram
   class GameState
   class GameAction
   class GameObservation
+  class GameKey
 
-  GameRegistry ..> GameDefinition : definition
-  GameRegistry ..> GameCodec : codec
-  GameRegistry ..> GameRegistration : indexed by full key
+  GameRegistry ..> GameKey : "indexed by full key"
+  GameRegistry --> GameDefinition : definition
+  GameRegistry --> GameCodec : codec
+  GameRegistry --> GameRegistration : registration
   GameRegistration *-- GameDefinition
   GameRegistration *-- GameCodec
   GameRegistration *-- ActionSchemaProvider
-  MatchFactory ..> InitializedMatch : create
+  MatchFactory --> InitializedMatch : create
   InitializedMatch *-- Match
   InitializedMatch *-- TurnContext
   InitializedMatch *-- StateSnapshot
-  GameCodec ..> GameState
-  GameCodec ..> GameAction
-  GameCodec ..> GameObservation
+  GameCodec ..> GameState : encode
+  GameCodec --> GameState : decode
+  GameCodec ..> GameAction : encode
+  GameCodec --> GameAction : decode
+  GameCodec ..> GameObservation : encode
 ```
 
 - `GameRegistry` / `GameRegistration` / `GameCodec`：Spring 配置显式注册规则、编解码器和动作 Schema。
@@ -146,12 +157,14 @@ classDiagram
   class Room
   class RoomHealth
   class ExecutionStatus
+  class ExecutionMode
   class Match
   class MatchStatus
   class GameKey
   class Participant
   class TurnContext
   class TurnStatus
+  class SchedulingMode
   class GameResult
   class ControlCommand
   class CommandResult
@@ -161,18 +174,21 @@ classDiagram
   class GameEngine
   class GameDefinition
 
-  Room --> Match : activeMatch
-  Room --> RoomHealth
-  Room --> ExecutionStatus
-  Match --> MatchStatus
-  Match --> GameKey
+  Room --> Match : activeMatchId
+  Room *-- RoomHealth
+  Room *-- ExecutionStatus
+  Room *-- ExecutionMode
+  Match --> Room : roomId
+  Match *-- MatchStatus
+  Match *-- GameKey
   Match *-- Participant
-  Match --> TurnContext
-  Match --> GameResult : result
-  TurnContext --> TurnStatus
+  Match --> TurnContext : currentTurnId
+  Match *-- GameResult : result
+  TurnContext *-- TurnStatus
+  TurnContext *-- SchedulingMode
   TurnScheduler ..> ControlCommand : handleCommand
-  TurnScheduler ..> CommandResult
-  DecisionLifecycle ..> StartedDecision : start
+  TurnScheduler --> CommandResult
+  DecisionLifecycle --> StartedDecision : start
   GameEngine ..> GameDefinition : apply
 ```
 
@@ -198,6 +214,7 @@ classDiagram
   class RuntimeOutcome
   class SelectedAction
   class StructuredAction
+  class Failed
   class AgentRunner
   class AgentContextBuilder
   class ModelAdapter
@@ -219,32 +236,35 @@ classDiagram
   class PromptPublisher
 
   Decision --> TurnContext
-  Decision --> DecisionStatus
-  AgentRuntime --> RuntimeExecutionResult
+  Decision *-- DecisionStatus
+  AgentRuntime --> RuntimeOutcome : decide
+  AgentRuntime --> RuntimeExecutionResult : decideWithEvidence
   RuntimeExecutionResult *-- RuntimeOutcome
   RuntimeOutcome <|-- SelectedAction
   RuntimeOutcome <|-- StructuredAction
-  AgentRunner ..> AgentRuntime : decide
-  LlmAgentRuntime ..> AgentContextBuilder : build
-  LlmAgentRuntime ..> ModelAdapter : invoke once
-  LlmAgentRuntime ..> SelectionOutputCodec : schema and parse
-  LlmAgentRuntime ..> DecisionModelAudit : input audit
-  RoutingAgentRuntime ..> AgentRuntime : select bound type
-  DecisionInputReader ..> DecisionRequest : parse JSON shapes
-  StatelessContextBuilder ..> DecisionInputReader : parse fixed input
-  StatelessContextBuilder --> BuiltContext : four bounded messages
-  MockAgentRuntime ..> DecisionInputReader : first supplied candidate
+  RuntimeOutcome <|-- Failed
+  AgentRunner ..> AgentRuntime : decideWithEvidence
+  LlmAgentRuntime *-- AgentContextBuilder
+  LlmAgentRuntime *-- DecisionInputReader
+  LlmAgentRuntime *-- ModelAdapter
+  LlmAgentRuntime *-- SelectionOutputCodec
+  LlmAgentRuntime *-- DecisionModelAudit
+  RoutingAgentRuntime *-- AgentRuntime
+  DecisionInputReader ..> DecisionRequest : "parse JSON shapes"
+  StatelessContextBuilder *-- DecisionInputReader
+  StatelessContextBuilder --> BuiltContext : "four bounded messages"
+  MockAgentRuntime *-- DecisionInputReader
   AgentRunner ..> ActionSubmitter : submit
   ActionSubmitter ..> ActionEnvelope
   ActionSubmitter --> ActionSubmissionResult
-  ActionSubmissionResult --> SubmissionStatus
-  PromptPublisher ..> PromptVersion : publish
+  ActionSubmissionResult *-- SubmissionStatus
+  PromptPublisher --> PromptVersion : publish
   Decision --> PromptVersion : binds
   Decision --> AgentConfiguration : binds
 ```
 
 - `Decision` / `DecisionStatus` / `StartedDecision`：一次决策的生命周期、状态和启动时固定的版本、观察与期限快照。
-- `RuntimeOutcome` / `SelectedAction` / `StructuredAction`：Runtime 返回的候选选择、结构化动作或失败结果。
+- `RuntimeOutcome` / `SelectedAction` / `StructuredAction` / `Failed`：Runtime 返回的候选选择、结构化动作或失败结果。
 - `AgentRunner` / `AgentRuntime`：编排一次决策与执行 Agent 决策机制；二者都不能直接修改世界。
 - `AgentContextBuilder` / `ModelAdapter`：构造模型输入并隔离具体模型供应商。
 - `DecisionInputReader` / `StatelessContextBuilder`：严格解析请求 JSON 形状并构造有字节预算的无状态四消息上下文。
@@ -268,6 +288,7 @@ classDiagram
   class AgentRunner
   class ActionSubmitter
   class ActionSubmissionResult
+  class DecisionGameAccess
   class GameEngine
   class GameDefinition
   class Resolution
@@ -278,7 +299,8 @@ classDiagram
 
   AgentRunner ..> ActionSubmitter : submit
   ActionSubmitter --> ActionSubmissionResult : 回执
-  ActionSubmitter ..> GameEngine : 权威结算
+  ActionSubmitter ..> DecisionGameAccess : apply
+  DecisionGameAccess ..> GameEngine : apply
   GameEngine ..> GameDefinition : apply
   GameEngine --> Resolution : apply
   GameDefinition --> Resolution : resolve
@@ -289,7 +311,7 @@ classDiagram
 ```
 
 - `AgentRunner` 与 `AgentRuntime` 不能直接修改世界。
-- `ActionSubmitter` 的实现经游戏访问端口调用 `GameEngine.apply`，再由 `GameDefinition.resolve` 产生 `Resolution`。
+- `ActionSubmitter` 的实现经 `DecisionGameAccess` 调用 `GameEngine.apply`，再由 `GameDefinition.resolve` 产生 `Resolution`。
 
 ### 四子棋实例
 
@@ -386,7 +408,7 @@ stateDiagram-v2
 stateDiagram-v2
   [*] --> OPEN
   OPEN --> RESOLVED : "成功结算"
-  OPEN --> CANCELLED : "reset / 中止"
+  OPEN --> CANCELLED : "reset / cancel_decision"
   RESOLVED --> [*]
   CANCELLED --> [*]
 ```
@@ -398,7 +420,7 @@ stateDiagram-v2
 - 游戏定义了该动作且校验通过后，与其他合法动作一样经权威结算：回执为 `EXECUTED`，回合变为 `RESOLVED`，整个阶段 `stateVersion` 加 1。
 - 过通常使对局保持 `ONGOING`，再由 `nextTurn` 给出下一阶段。
 - 认输由规则给出终局 `GameResult`，`Match` 变为 `FINISHED`；它不是 `ABORTED`，也不是 `CANCELLED`。
-- `cancel_decision`、reset 和中止仍只把未结算阶段标为 `CANCELLED`，不推进 `stateVersion`。
+- `cancel_decision`、reset 和中止把未结算阶段标为 `CANCELLED`，不推进 `stateVersion`。当前决策已过 deadline 时，`cancel` 把它记为 `EXPIRED`，回合保持 `OPEN`。
 - 某游戏未定义该动作时按规则拒绝。
 - 四子棋当前只有 `place_disc`，不存在跳过动作；这是该游戏规则，不是平台禁止过。
 
@@ -406,10 +428,9 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-  [*] --> SUBMISSION
-  SUBMISSION --> EXECUTED : "权威校验通过并结算"
-  SUBMISSION --> REJECTED : "身份、期限、版本或规则拒绝"
-  SUBMISSION --> ACCEPTED : "未来同时回合：先收取动作"
+  [*] --> EXECUTED : "权威校验通过并结算"
+  [*] --> REJECTED : "身份、期限、版本或规则拒绝"
+  [*] --> ACCEPTED : "未来同时回合：先收取动作"
   ACCEPTED --> EXECUTED : "阶段统一结算成功"
   ACCEPTED --> REJECTED : "阶段统一结算拒绝"
   EXECUTED --> [*]
