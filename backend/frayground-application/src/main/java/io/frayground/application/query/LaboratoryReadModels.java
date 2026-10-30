@@ -4,6 +4,7 @@ import io.frayground.domain.action.*;
 import io.frayground.domain.game.*;
 import io.frayground.domain.match.*;
 import java.util.List;
+import java.util.UUID;
 
 /** Read-only data collected while a single game transaction is active. */
 public final class LaboratoryReadModels {
@@ -20,4 +21,5 @@ public final class LaboratoryReadModels {
   public record EventPage(List<GameEvent> items, long nextAfter, boolean hasMore) {
     public EventPage { items = List.copyOf(items); }
   }
+  public record ObservationData(UUID matchId, UUID participantId, long observationVersion, String observationJson) {}
 }

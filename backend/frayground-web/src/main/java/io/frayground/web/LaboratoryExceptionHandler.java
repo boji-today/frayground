@@ -1,5 +1,6 @@
 package io.frayground.web;
 
+import io.frayground.application.RejectedCommand;
 import io.frayground.application.query.LaboratoryQueryService.*;
 import io.frayground.web.dto.LaboratoryDtos.ErrorView;
 import org.springframework.context.annotation.Profile;
@@ -11,6 +12,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @Profile("laboratory")
 public class LaboratoryExceptionHandler {
   @ExceptionHandler(NotFound.class) ResponseEntity<ErrorView> notFound(NotFound e) { return LaboratoryErrors.transport(404,e.code()); }
+  @ExceptionHandler(RejectedCommand.class) ResponseEntity<ErrorView> rejected(RejectedCommand e) {
+    return e.commandId()==null ? LaboratoryErrors.transport(409,e.code()) : LaboratoryErrors.command(e.code(),e.commandId());
+  }
   @ExceptionHandler({IllegalArgumentException.class, MethodArgumentTypeMismatchException.class})
   ResponseEntity<ErrorView> badRequest() { return LaboratoryErrors.transport(400,"INVALID_REQUEST"); }
   @ExceptionHandler(Unavailable.class) ResponseEntity<ErrorView> unavailable() { return LaboratoryErrors.transport(503,"ROOM_UNAVAILABLE"); }

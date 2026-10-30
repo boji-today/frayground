@@ -17,14 +17,15 @@ public class LaboratoryQueryService {
   private final DecisionStore decisions; private final DecisionRecordStore records;
   private final ActionReceiptStore receipts; private final SnapshotStore snapshots;
   private final GameEventStore gameEvents; private final RoomEventRepository roomEvents;
-  private final DecisionHistoryReader history;
+  private final DecisionHistoryReader history; private final DecisionGameAccess games;
   public LaboratoryQueryService(UUID roomId, RoomStore rooms, MatchStore matches, TurnStore turns,
       DecisionStore decisions, DecisionRecordStore records, ActionReceiptStore receipts,
       SnapshotStore snapshots, GameEventStore gameEvents, RoomEventRepository roomEvents,
-      DecisionHistoryReader history) {
+      DecisionHistoryReader history, DecisionGameAccess games) {
     this.roomId=roomId; this.rooms=rooms; this.matches=matches; this.turns=turns;
     this.decisions=decisions; this.records=records; this.receipts=receipts;
     this.snapshots=snapshots; this.gameEvents=gameEvents; this.roomEvents=roomEvents; this.history=history;
+    this.games=games;
   }
   public static final class NotFound extends RuntimeException {
     private final String code;
@@ -57,6 +58,16 @@ public class LaboratoryQueryService {
     var all=gameEvents.readAfter(matchId,after,limit+1);
     var items=all.stream().limit(limit).toList();
     return new EventPage(items,items.isEmpty()?after:items.get(items.size()-1).sequence(),all.size()>limit);
+  }
+  @Transactional(transactionManager="gameTransactionManager",readOnly=true)
+  public ObservationData observation(UUID matchId, UUID participantId) {
+    Match m=owned(matchId);
+    if(m.participants().stream().noneMatch(p->p.participantId().equals(participantId))) throw new NotFound("MATCH_NOT_FOUND");
+    StateSnapshot snapshot=snapshots.find(matchId,m.stateVersion()).orElseThrow(Unavailable::new);
+    DecisionGameAccess.Prepared prepared;
+    try { prepared=games.prepare(m.gameKey(),m.stateVersion(),snapshot.state(),m.participants(),participantId); }
+    catch(RuntimeException ex) { throw new Unavailable(); }
+    return new ObservationData(m.matchId(),participantId,m.stateVersion(),prepared.observationJson());
   }
   @Transactional(transactionManager="gameTransactionManager",readOnly=true)
   public List<RoomEvent> roomEvents(UUID id,long after,int limit) {

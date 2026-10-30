@@ -1,10 +1,9 @@
 package io.frayground.web;
 
 import io.frayground.application.query.LaboratoryReadModels.MatchData;
-import io.frayground.web.dto.LaboratoryDtos.BoardView;
 import io.frayground.web.dto.LaboratoryDtos.ResultView;
 
-/** Projects a stored match snapshot into the public board view. */
+/** Projects a stored match snapshot into the public game object. */
 public interface BoardProjector {
-  BoardView project(MatchData data, ResultView result);
+  Object project(MatchData data, ResultView result);
 }

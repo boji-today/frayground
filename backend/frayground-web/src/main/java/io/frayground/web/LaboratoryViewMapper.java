@@ -1,16 +1,24 @@
 package io.frayground.web;
 
+import io.frayground.application.port.LaboratoryPromptStore.AgentPromptState;
+import io.frayground.application.query.LaboratoryQueryService.Unavailable;
 import io.frayground.application.query.LaboratoryReadModels.*;
 import io.frayground.domain.action.*;
 import io.frayground.domain.game.*;
 import io.frayground.domain.match.CommandResult;
+import io.frayground.domain.strategy.PromptDraft;
+import io.frayground.domain.strategy.PromptVersion;
 import io.frayground.web.dto.LaboratoryDtos.*;
 import java.util.*;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Explicit whitelist mapping, independent of storage and domain serialization. */
 public final class LaboratoryViewMapper {
-  private final BoardProjector projector;
-  public LaboratoryViewMapper(BoardProjector projector) { this.projector=projector; }
+  private static final TypeReference<LinkedHashMap<String,Object>> OBJECT = new TypeReference<>() {};
+  private final BoardProjector projector; private final JsonMapper json;
+  public LaboratoryViewMapper(BoardProjector projector, JsonMapper json) { this.projector=projector; this.json=json; }
   public RoomView room(RoomData data) {
     var r=data.room();
     return new RoomView(r.roomId(),r.revision(),r.eventSeq(),r.executionMode().name(),
@@ -46,16 +54,40 @@ public final class LaboratoryViewMapper {
         d.deadlineAt(),d.endedAt(),d.errorCode(),d.usage(),d.latencyMs());
   }
   public GameEventView event(GameEvent e) {
-    Map<String,Object> payload=new LinkedHashMap<>();
-    if(e.type().equals("DiscPlaced")) for(String key:List.of("row","column","seat","participantId"))
-      if(e.payload().containsKey(key))payload.put(key,e.payload().get(key));
-    return new GameEventView(e.matchId(),e.sequence(),e.stateVersion(),e.decisionId(),e.type(),e.eventVersion(),Map.copyOf(payload),e.occurredAt());
+    return new GameEventView(e.matchId(),e.sequence(),e.stateVersion(),e.decisionId(),e.type(),e.eventVersion(),
+        new LinkedHashMap<>(e.payload()),e.occurredAt());
   }
-  private static ActionView action(Map<String,Object> a) {
-    if(a==null)return null;
-    Object type=a.get("type"), column=a.get("column");
-    if(!"place_disc".equals(type)||!(column instanceof Number n))return null;
-    return new ActionView("place_disc",n.intValue());
+  public AgentView agent(AgentPromptState state) {
+    return new AgentView(state.published().agentId(), state.name(), draft(state.draft()), prompt(state.published()),
+        configuration(state));
+  }
+  public PromptDraftView draft(PromptDraft draft) {
+    return new PromptDraftView(draft.agentId(), draft.revision(), draft.content(), draft.updatedAt());
+  }
+  public PromptVersionView prompt(PromptVersion version) {
+    return new PromptVersionView(version.promptVersionId(), version.agentId(), version.versionNo(),
+        version.sourceDraftRevision(), version.content(), version.createdAt());
+  }
+  public ObservationView observation(ObservationData data) {
+    try {
+      JsonNode node=json.readTree(data.observationJson());
+      if(node==null || !node.isObject()) throw new Unavailable();
+      return new ObservationView(data.matchId(), data.participantId(), data.observationVersion(), json.convertValue(node, OBJECT));
+    } catch(RuntimeException ex) {
+      if(ex instanceof Unavailable unavailable) throw unavailable;
+      throw new Unavailable();
+    }
+  }
+  private static AgentConfigurationView configuration(AgentPromptState state) {
+    var config=state.configuration(); var model=config.model();
+    return new AgentConfigurationView(config.configVersionId(), config.agentId(), config.versionNo(), config.runtimeType().name(),
+        new ModelView(model.provider(), model.modelId(), model.thinking(), model.temperature(), model.maxOutputTokens(),
+            model.decisionTimeoutMs(), model.outputStrategy(), model.allowBeta()),
+        new MemoryPolicyView(config.memoryPolicy().mode().name()), config.createdAt());
+  }
+  private static Map<String,Object> action(Map<String,Object> a) {
+    if(a==null || !(a.get("type") instanceof String type) || type.isBlank()) return null;
+    return new LinkedHashMap<>(a);
   }
   private static String safeCode(String code) { return code!=null && code.matches("[A-Z][A-Z0-9_]{0,79}")?code:null; }
   private static ResultView result(GameResult r) {

@@ -5,6 +5,7 @@ import io.frayground.agent.HostedBindings;
 import io.frayground.adapter.memory.InMemoryDecisionHistoryReader;
 import io.frayground.adapter.memory.InMemoryStorage;
 import io.frayground.application.LaboratoryRoomInitializer;
+import io.frayground.application.MemoryPromptPublisher;
 import io.frayground.application.TurnSchedulingModule;
 import io.frayground.application.query.LaboratoryQueryService;
 import io.frayground.adapter.game.GameRegistry;
@@ -33,7 +34,8 @@ public class LaboratoryApiConfiguration {
   @Bean FixedLaboratoryBindings laboratoryBindings(LaboratoryProperties p, LaboratoryAgentProperties agents, Clock clock) {
     return new FixedLaboratoryBindings(Map.of(
         p.agentA(), binding(p.agentA(), agents.a(), clock),
-        p.agentB(), binding(p.agentB(), agents.b(), clock)));
+        p.agentB(), binding(p.agentB(), agents.b(), clock)),
+        Map.of(p.agentA(), "Agent A", p.agentB(), "Agent B"));
   }
   private static HostedBindings binding(UUID id, LaboratoryAgentProperties.Agent settings, Clock clock) {
     var createdAt = clock.instant();
@@ -55,7 +57,11 @@ public class LaboratoryApiConfiguration {
   @Bean BoardProjector laboratoryProjector(GameRegistry registry,JsonMapper json) {
     return new ConnectFourViewProjector(registry,json);
   }
-  @Bean LaboratoryViewMapper laboratoryViewMapper(BoardProjector projector) { return new LaboratoryViewMapper(projector); }
+  @Bean LaboratoryViewMapper laboratoryViewMapper(BoardProjector projector, JsonMapper json) { return new LaboratoryViewMapper(projector, json); }
+  @Bean MemoryPromptPublisher memoryPromptPublisher(RoomStore rooms, MatchStore matches, CommandReceiptStore receipts,
+      RoomEventRepository events, FixedLaboratoryBindings prompts, Clock clock, Supplier<UUID> ids) {
+    return new MemoryPromptPublisher(rooms, matches, receipts, events, prompts, clock, ids);
+  }
   @Bean LaboratoryRequestDecoder laboratoryRequestDecoder() { return new LaboratoryRequestDecoder(); }
   @Bean RoomEventStreamService roomEventStreamService(LaboratoryQueryService queries) { return new RoomEventStreamService(queries); }
   @Bean DecisionHistoryReader laboratoryDecisionHistoryReader(InMemoryStorage storage) {
@@ -64,9 +70,9 @@ public class LaboratoryApiConfiguration {
   @Bean LaboratoryQueryService laboratoryQueryService(LaboratoryProperties p, RoomStore rooms,
       MatchStore matches, TurnStore turns, DecisionStore decisions, DecisionRecordStore records,
       ActionReceiptStore receipts, SnapshotStore snapshots, GameEventStore gameEvents,
-      RoomEventRepository roomEvents, DecisionHistoryReader history) {
+      RoomEventRepository roomEvents, DecisionHistoryReader history, DecisionGameAccess games) {
     return new LaboratoryQueryService(p.roomId(), rooms, matches, turns, decisions, records,
-        receipts, snapshots, gameEvents, roomEvents, history);
+        receipts, snapshots, gameEvents, roomEvents, history, games);
   }
   @Bean LaboratoryRoomInitializer laboratoryRoomInitializer(RoomStore rooms, MatchStore matches,
       TurnStore turns, SnapshotStore snapshots, RoomEventRepository events, MatchFactory factory,

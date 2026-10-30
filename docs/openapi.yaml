@@ -180,7 +180,7 @@ paths:
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/agents/{agentId}/prompt-draft:
     put:
       operationId: savePromptDraft
@@ -209,7 +209,7 @@ paths:
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
       requestBody:
         required: true
         content:
@@ -248,7 +248,7 @@ paths:
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
       requestBody:
         required: true
         content:
@@ -438,7 +438,7 @@ paths:
           $ref: '#/components/responses/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
-      x-implementation-status: planned-mvp
+      x-implementation-status: implemented-memory
   /api/v1/matches/{matchId}/events:
     get:
       operationId: listGameEvents
@@ -859,9 +859,21 @@ components:
           required: [turnId, turnNo, roundNo, requiredParticipants, decisions]
           additionalProperties: false
         result: {$ref: '#/components/schemas/LaboratoryGameResult'}
-        game: {$ref: '#/components/schemas/ConnectFourBoardView'}
+        game:
+          type: object
+          additionalProperties: true
+          description: 当前对局的游戏投影。gameType 为 connect-four 时形状是 ConnectFourBoardView；其他已注册游戏为各自 codec 编码后的状态。
       required: [matchId, roomId, gameType, gameRulesVersion, status, stateVersion, participants, turn, result, game]
       additionalProperties: false
+      allOf:
+      - if:
+          properties:
+            gameType:
+              const: connect-four
+        then:
+          properties:
+            game:
+              $ref: '#/components/schemas/ConnectFourBoardView'
     LaboratoryGameResult:
       type: [object, 'null']
       properties:
@@ -1012,6 +1024,8 @@ components:
         content:
           type: string
           maxLength: 16384
+          x-trusted-client: true
+          description: 当前由调用方直接提交。认证接入后不再信任调用方给出的身份；玩家仍可编辑草稿，但 Agent 归属改由会话决定。
       required:
       - expectedDraftRevision
       - content
@@ -1633,12 +1647,21 @@ components:
             additionalProperties: false
         required: [submittedAction, receipt]
     LaboratoryAction:
-      type: [object, 'null']
-      properties:
-        type: {type: string, const: place_disc}
-        column: {type: integer}
-      required: [type, column]
-      additionalProperties: false
+      description: 动作为 type 及其余游戏字段。type 为 place_disc 时与 ConnectFourAction 一致。
+      allOf:
+      - type: [object, 'null']
+        properties:
+          type: {type: string}
+        required: [type]
+        additionalProperties: true
+      - if:
+          type: object
+          properties:
+            type:
+              const: place_disc
+          required: [type]
+        then:
+          $ref: '#/components/schemas/ConnectFourAction'
     DecisionSummaryView:
       type: object
       properties:
@@ -2020,6 +2043,8 @@ components:
       name: agentId
       in: path
       required: true
+      x-trusted-client: true
+      description: 当前信任调用方在路径中给出的身份。认证接入后不再信任调用方给出的身份。
       schema:
         type: string
         format: uuid
@@ -2027,6 +2052,8 @@ components:
       name: participantId
       in: path
       required: true
+      x-trusted-client: true
+      description: 当前信任调用方在路径中给出的身份。认证接入后不再信任调用方给出的身份。
       schema:
         type: string
         format: uuid

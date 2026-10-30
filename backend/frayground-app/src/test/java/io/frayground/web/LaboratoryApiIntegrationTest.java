@@ -61,11 +61,37 @@ class LaboratoryApiIntegrationTest {
         .andExpect(jsonPath("$.currentMatch.stateVersion").value(1))
         .andExpect(jsonPath("$.currentMatch.game.moveCount").value(1))
         .andExpect(jsonPath("$.currentMatch.game.lastMove.row").value(5));
-    mvc.perform(get("/api/v1/matches/"+room.activeMatchId())).andExpect(status().isOk())
+    String matchBody=mvc.perform(get("/api/v1/matches/"+room.activeMatchId())).andExpect(status().isOk())
         .andExpect(jsonPath("$.game.moveCount").value(1))
-        .andExpect(jsonPath("$.game.lastMove.row").value(5));
+        .andExpect(jsonPath("$.game.board").isArray())
+        .andExpect(jsonPath("$.game.seats").isMap())
+        .andExpect(jsonPath("$.game.currentParticipantId").exists())
+        .andExpect(jsonPath("$.game.winningCells").isArray())
+        .andExpect(jsonPath("$.game.result.status").value("ONGOING"))
+        .andExpect(jsonPath("$.game.lastMove.row").value(5))
+        .andExpect(jsonPath("$.game.lastMove.column").exists())
+        .andReturn().getResponse().getContentAsString();
+    String current=json.readTree(matchBody).path("game").path("currentParticipantId").asText();
+    mvc.perform(get("/api/v1/matches/"+room.activeMatchId()+"/participants/"+current+"/observation"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.observationVersion").value(1))
+        .andExpect(jsonPath("$.observation.legalColumns").isArray())
+        .andExpect(jsonPath("$.observation.legalColumns[0]").exists());
+    String decisionId=mvc.perform(get("/api/v1/matches/"+room.activeMatchId()+"/decisions"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].status").value("COMPLETED"))
+        .andReturn().getResponse().getContentAsString();
+    decisionId=json.readTree(decisionId).path("items").get(0).path("decisionId").asText();
+    mvc.perform(get("/api/v1/decisions/"+decisionId)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.submittedAction.type").value("place_disc"))
+        .andExpect(jsonPath("$.submittedAction.column").exists())
+        .andExpect(jsonPath("$.receipt.executedAction.type").value("place_disc"))
+        .andExpect(jsonPath("$.receipt.executedAction.column").exists());
     mvc.perform(get("/api/v1/matches/"+room.activeMatchId()+"/events"))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].type").value("DiscPlaced"));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].type").value("DiscPlaced"))
+        .andExpect(jsonPath("$.items[0].payload.column").exists())
+        .andExpect(jsonPath("$.items[0].payload.row").exists())
+        .andExpect(jsonPath("$.items[0].payload.seat").exists())
+        .andExpect(jsonPath("$.items[0].payload.participantId").exists());
     mvc.perform(get("/api/v1/matches/"+room.activeMatchId()+"/events").param("after","9007199254740992"))
         .andExpect(status().isBadRequest());
     mvc.perform(get("/api/v1/matches/"+room.activeMatchId()+"/decisions"))
