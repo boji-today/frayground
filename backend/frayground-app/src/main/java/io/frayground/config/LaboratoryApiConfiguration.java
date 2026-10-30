@@ -52,10 +52,10 @@ public class LaboratoryApiConfiguration {
   // A new in-memory process has no old data to recover.
   @Bean RecoveryService laboratoryRecovery() { return () -> {}; }
   @Bean ConnectFourDecisionMetadata laboratoryConnectFourMetadata() { return new ConnectFourDecisionMetadata(); }
-  @Bean ConnectFourViewProjector laboratoryProjector(GameRegistry registry,JsonMapper json) {
+  @Bean BoardProjector laboratoryProjector(GameRegistry registry,JsonMapper json) {
     return new ConnectFourViewProjector(registry,json);
   }
-  @Bean LaboratoryViewMapper laboratoryViewMapper(ConnectFourViewProjector projector) { return new LaboratoryViewMapper(projector); }
+  @Bean LaboratoryViewMapper laboratoryViewMapper(BoardProjector projector) { return new LaboratoryViewMapper(projector); }
   @Bean LaboratoryRequestDecoder laboratoryRequestDecoder() { return new LaboratoryRequestDecoder(); }
   @Bean RoomEventStreamService roomEventStreamService(LaboratoryQueryService queries) { return new RoomEventStreamService(queries); }
   @Bean DecisionHistoryReader laboratoryDecisionHistoryReader(InMemoryStorage storage) {

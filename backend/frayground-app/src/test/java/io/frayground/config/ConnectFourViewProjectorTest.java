@@ -1,4 +1,4 @@
-package io.frayground.web;
+package io.frayground.config;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.frayground.adapter.game.*;

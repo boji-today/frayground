@@ -34,7 +34,6 @@ flowchart BT
   web --> engine
   web --> application
   web --> spi
-  web --> c4
   app --> domain
   app --> engine
   app --> agent

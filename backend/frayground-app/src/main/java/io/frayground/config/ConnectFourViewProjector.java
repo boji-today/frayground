@@ -1,25 +1,26 @@
-package io.frayground.web;
+package io.frayground.config;
 
 import io.frayground.adapter.game.GameRegistry;
-import io.frayground.domain.game.GameKey;
-import io.frayground.domain.game.connectfour.ConnectFourState;
 import io.frayground.application.query.LaboratoryQueryService.Unavailable;
 import io.frayground.application.query.LaboratoryReadModels.MatchData;
+import io.frayground.domain.game.GameKey;
+import io.frayground.domain.game.connectfour.ConnectFourState;
+import io.frayground.web.BoardProjector;
 import io.frayground.web.dto.LaboratoryDtos.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
-import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Decodes the registered snapshot without exposing its stored JSON. */
-public final class ConnectFourViewProjector {
+public final class ConnectFourViewProjector implements BoardProjector {
   private final GameRegistry registry; private final JsonMapper json;
   private final JsonMapper snapshotJson=JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
       .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
   public ConnectFourViewProjector(GameRegistry registry,JsonMapper json) { this.registry=registry; this.json=json; }
-  public BoardView project(MatchData data,ResultView result) {
+  @Override public BoardView project(MatchData data,ResultView result) {
     try {
       if(!data.match().gameKey().equals(new GameKey("connect-four","1")))throw new Unavailable();
       var codec=registry.codec(data.match().gameKey()).orElseThrow(Unavailable::new);

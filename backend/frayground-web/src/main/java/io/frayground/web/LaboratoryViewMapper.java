@@ -9,8 +9,8 @@ import java.util.*;
 
 /** Explicit whitelist mapping, independent of storage and domain serialization. */
 public final class LaboratoryViewMapper {
-  private final ConnectFourViewProjector projector;
-  public LaboratoryViewMapper(ConnectFourViewProjector projector) { this.projector=projector; }
+  private final BoardProjector projector;
+  public LaboratoryViewMapper(BoardProjector projector) { this.projector=projector; }
   public RoomView room(RoomData data) {
     var r=data.room();
     return new RoomView(r.roomId(),r.revision(),r.eventSeq(),r.executionMode().name(),
