@@ -37,7 +37,8 @@ public class LaboratoryQueryService {
   public RoomData room(UUID id) {
     if (!roomId.equals(id)) throw new NotFound("ROOM_NOT_FOUND");
     Room room=rooms.find(id).orElseThrow(()->new NotFound("ROOM_NOT_FOUND"));
-    return new RoomData(room, room.activeMatchId()==null ? null : readMatch(room.activeMatchId()));
+    if (room.activeMatchId()==null) throw new Unavailable();
+    return new RoomData(room, readMatch(room.activeMatchId()));
   }
   @Transactional(transactionManager="gameTransactionManager",readOnly=true)
   public MatchData match(UUID id) { return readMatch(id); }

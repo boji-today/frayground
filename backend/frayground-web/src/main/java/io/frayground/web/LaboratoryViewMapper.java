@@ -20,10 +20,11 @@ public final class LaboratoryViewMapper {
   private final BoardProjector projector; private final JsonMapper json;
   public LaboratoryViewMapper(BoardProjector projector, JsonMapper json) { this.projector=projector; this.json=json; }
   public RoomView room(RoomData data) {
+    if(data.currentMatch()==null) throw new Unavailable();
     var r=data.room();
     return new RoomView(r.roomId(),r.revision(),r.eventSeq(),r.executionMode().name(),
         r.executionStatus().name(),r.health().name(),r.healthError()==null?null:"ROOM_UNAVAILABLE",
-        data.currentMatch()==null?null:match(data.currentMatch()));
+        match(data.currentMatch()));
   }
   public MatchView match(MatchData data) {
     var m=data.match(); var t=data.turn(); var result=result(m.result());

@@ -140,7 +140,7 @@ data: {"sequence":24,"roomId":"00000000-0000-4000-8000-000000000031","matchId":"
 | MATCH_FINISHED | result | 刷新终局状态 |
 | SERVER_RECOVERED / ROOM_UNAVAILABLE | reason | 显示恢复暂停/故障，刷新权威状态 |
 
-MVP 的 SSE 是失效通知加小型状态字段，不承诺每条事件携带完整 RoomView；客户端以查询返回的 revision 为准，旧请求不能覆盖较新状态。所有有限事件类型用 OpenAPI 枚举，payload 的语义以本表为准。GameEvent 单独提供 MatchInitialized、DiscPlaced、MatchFinished 等可重放事实。
+MVP 的 SSE 是失效通知加小型状态字段，不承诺每条事件携带完整 RoomView；客户端以查询返回的 revision 为准，旧请求不能覆盖较新状态。房间事件类型用 OpenAPI 枚举，payload 的语义以本表为准。未列入枚举的房间事件不向客户端发送。GameEvent.type 是开放字符串；四子棋事实为 DiscPlaced、MatchFinished，其他已注册游戏使用各自规则事件名。
 
 首次 after 默认 0；有 Last-Event-ID 时优先使用。游标负数/非整数为 400，超前于当前持久化序号为 409 CURSOR_INVALID。正常数据不清理，故不存在正常保留窗口过期；数据库恢复/更换造成游标失效则重新 GET 并新建 EventSource。慢客户端断开后按已处理游标补发；心跳不带 id。浏览器刷新先 GET 再订阅，草稿保存状态独立处理。
 
@@ -149,11 +149,13 @@ MVP 的 SSE 是失效通知加小型状态字段，不承诺每条事件携带�
 | HTTP | code | 自动处理 |
 | --- | --- | --- |
 | 400 | INVALID_JSON / INVALID_REQUEST / UNSUPPORTED_PROTOCOL | 修正请求；无可信 ID 不留动作回执 |
+| 403 | CLIENT_HEADER_REQUIRED / ORIGIN_FORBIDDEN | 变更请求补上 `X-Frayground-Client: laboratory`，或改为同源请求 |
+| 415 | UNSUPPORTED_MEDIA_TYPE | 变更请求使用 `application/json` |
 | 404 | ROOM_NOT_FOUND / MATCH_NOT_FOUND / AGENT_NOT_FOUND / DECISION_NOT_FOUND | 检查目标，不重试生成 |
 | 409 | ROOM_REVISION_CONFLICT / COMMAND_ID_CONFLICT / CONTROL_BUSY | 刷新后由新用户动作创建新命令 |
 | 409 | ACTION_ID_CONFLICT / DECISION_ALREADY_RESOLVED / DECISION_CANCELLED / DECISION_EXPIRED / STALE_MATCH / STALE_STATE / TURN_MISMATCH | 不改变终态，不重新选择并伪装网络重试 |
 | 409 | DRAFT_REVISION_CONFLICT / MATCH_NOT_ACTIVE / NO_ACTIVE_DECISION / CURSOR_INVALID | 获取最新状态 |
-| 422 | SCHEMA_VALIDATION_FAILED / ILLEGAL_ACTION / CONTEXT_TOO_LARGE / MODEL_CONFIGURATION_INVALID / MEMORY_MODE_NOT_SUPPORTED | 调整请求；发生于当前决策时记录失败并暂停 |
+| 422 | SCHEMA_VALIDATION_FAILED / ILLEGAL_ACTION / CONTEXT_TOO_LARGE / MODEL_CONFIGURATION_INVALID / MEMORY_MODE_NOT_SUPPORTED | 仅配置更新与未来动作提交；调整请求。发生于当前决策时记录失败并暂停 |
 | 429 | RATE_LIMITED | 保留原命令/动作 ID，遵从 Retry-After；不自动调用模型 |
 | 500 | INTERNAL_ERROR | retryable=false，不自动重试；控制命令或动作提交结果不明时先查询状态，必要时复用原 ID；不生成新动作 |
 | 503 | STORAGE_UNAVAILABLE / ROOM_UNAVAILABLE | 对未知提交结果先查询或复用原 ID；不发新动作 |
@@ -164,7 +166,7 @@ MODEL_TIMEOUT、MODEL_UNAVAILABLE、MODEL_RATE_LIMITED、MODEL_REFUSED、MODEL_O
 
 ## 6. 安全与未来外部协议
 
-MVP 本机管理面：仅 loopback、同源开发代理、JSON 内容类型、验证 Origin（允许应用同源或非浏览器无 Origin 请求），不配置通配 CORS。变更请求要求 `X-Frayground-Client: laboratory` 防止简单跨站表单触发；它不是认证凭证。部署到网络前必须新增真实授权及相应 CSRF 方案，不靠 UUID 的难猜性。
+MVP 本机管理面：仅 loopback、同源开发代理、JSON 内容类型、验证 Origin（允许应用同源或非浏览器无 Origin 请求），不配置通配 CORS。变更请求要求 `X-Frayground-Client: laboratory`，缺失时返回 403 `CLIENT_HEADER_REQUIRED`；非 JSON 变更返回 415 `UNSUPPORTED_MEDIA_TYPE`。该请求头防止简单跨站表单触发，不是认证凭证。跨源 Origin 返回 403 `ORIGIN_FORBIDDEN`。部署到网络前必须新增真实授权及相应 CSRF 方案，不靠 UUID 的难猜性。
 
 管理面每 IP 变更 10 次/秒（突发 20）、查询 50 次/秒（突发 100）、SSE 最多 4 条；内存 token bucket 足以满足单实例，超限 429/Retry-After。内部 Runner 不经浏览器限流器。代理部署后的可信 IP 处理留待正式部署设计。
 

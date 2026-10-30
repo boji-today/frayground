@@ -17,6 +17,9 @@ public final class RoomEventStreamService implements AutoCloseable {
   private record EventView(long sequence,UUID roomId,UUID matchId,long roomRevision,String type,
       java.time.Instant occurredAt,Map<String,Object> payload) {}
   private static final Object HEARTBEAT=new Object();
+  private static final Set<String> ROOM_EVENT_TYPES=Set.of("ROOM_INITIALIZED","MATCH_RESET","EXECUTION_CHANGED",
+      "DECISION_STARTED","DECISION_FINISHED","ACTION_RESOLVED","MATCH_FINISHED","ROOM_UNAVAILABLE",
+      "SERVER_RECOVERED","PROMPT_PUBLISHED","CONFIGURATION_PUBLISHED");
   private final LaboratoryQueryService queries;
   private final ScheduledExecutorService polling=Executors.newSingleThreadScheduledExecutor();
   private static final long ASYNC_TIMEOUT_MS=30_000L;
@@ -62,7 +65,8 @@ public final class RoomEventStreamService implements AutoCloseable {
       if(closed.get())return;
       try {
         for(RoomEvent event:queries.roomEvents(roomId,cursor,100)) {
-          if(!queue.offer(project(event))) { close(); return; }
+          EventView view=project(event);
+          if(view!=null && !queue.offer(view)) { close(); return; }
           cursor=event.sequence();
         }
         long now=System.nanoTime();
@@ -92,9 +96,8 @@ public final class RoomEventStreamService implements AutoCloseable {
     }
   }
   private static EventView project(RoomEvent e) {
-    String type=Set.of("ROOM_INITIALIZED","MATCH_RESET","EXECUTION_CHANGED","DECISION_STARTED",
-        "DECISION_FINISHED","ACTION_RESOLVED","MATCH_FINISHED","ROOM_UNAVAILABLE",
-        "SERVER_RECOVERED","PROMPT_PUBLISHED","CONFIGURATION_PUBLISHED").contains(e.type())?e.type():"STATE_CHANGED";
+    if(!ROOM_EVENT_TYPES.contains(e.type())) return null;
+    String type=e.type();
     List<String> keys=switch(type) {
       case "ROOM_INITIALIZED", "MATCH_RESET" -> List.of("currentMatchId");
       case "EXECUTION_CHANGED" -> List.of("executionMode","executionStatus");
