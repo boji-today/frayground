@@ -2,6 +2,47 @@
 
 图对应已有 Java 契约。状态迁移以 [领域模型](../docs/03-domain-model.md) 为准。箭头表示协作方向：`domain` 不依赖外层，`engine`、`application`、`agent` 依赖 `domain`，`adapter` 再依赖它们。
 
+## Maven 模块
+
+箭头指向被依赖模块。`frayground-app` 聚合全部实现模块。
+
+```mermaid
+flowchart BT
+  engine --> domain
+  agent --> domain
+  application --> domain
+  application --> engine
+  application --> agent
+  spi[game-spi] --> domain
+  spi --> engine
+  spi --> application
+  c4[game-connectfour] --> domain
+  c4 --> spi
+  c4 --> application
+  bj[game-blackjack] --> domain
+  bj --> spi
+  bj --> application
+  memory[storage-memory] --> domain
+  memory --> application
+  model[adapter-model] --> domain
+  model --> agent
+  web --> domain
+  web --> engine
+  web --> application
+  web --> spi
+  web --> c4
+  app --> domain
+  app --> engine
+  app --> agent
+  app --> application
+  app --> spi
+  app --> c4
+  app --> bj
+  app --> memory
+  app --> model
+  app --> web
+```
+
 ## 类关系
 
 ## 存储适配与事务
@@ -26,6 +67,8 @@ classDiagram
   class TurnPlan
   class GameResult
   class ParticipantStanding
+  class ValidationResult
+  class ActionSpecification
   class GameRegistry
   class GameRegistration
   class GameCodec
@@ -38,6 +81,8 @@ classDiagram
   GameDefinition --> GameAction
   GameDefinition --> GameObservation
   GameDefinition --> TurnPlan
+  GameDefinition --> ActionSpecification : actions
+  GameDefinition --> ValidationResult : validate
   GameDefinition --> Resolution
   Resolution --> GameEventDraft
   Resolution --> GameResult
@@ -58,7 +103,9 @@ classDiagram
 
   class Room
   class RoomHealth
+  class ExecutionStatus
   class Match
+  class MatchStatus
   class TurnContext
   class TurnStatus
   class ControlCommand
@@ -70,6 +117,8 @@ classDiagram
 
   Room --> Match : activeMatch
   Room --> RoomHealth
+  Room --> ExecutionStatus
+  Match --> MatchStatus
   Match --> GameKey
   Match --> Participant
   Match --> TurnContext
@@ -136,14 +185,14 @@ classDiagram
 ```
 
 - `GameState` / `GameAction` / `GameObservation`：规则状态、结构化动作和席位可见观察。
-- `GameDefinition`：定义初始化、观察、动作校验、阶段结算和终局判定。
+- `GameDefinition`：定义初始化、观察、动作集合、动作校验、阶段结算和终局判定。`ActionSpecification` 是席位可提交的动作；`ValidationResult` 只表示接受或拒绝，不改变对局。
 - `GameEventDraft` / `Resolution` / `GameResult` / `ParticipantStanding`：规则产生的事件草稿、结算结果、游戏结局和参与者名次。
 - `GameKey` / `Participant` / `TurnPlan`：规则版本标识、局内席位和下一阶段计划。
 - `GameRegistry` / `GameRegistration` / `GameCodec`：Spring 配置显式注册规则、编解码器和动作 Schema；注册表按完整 `GameKey` 建不可变索引，不做版本回退。四子棋由 `frayground.games.connect-four.enabled=true` 开启，缺省或 `false` 时不注册；修改开关需重启。
 - `MatchFactory` / `InitializedMatch`：应用层请求适配器创建初始 `Match`、首个 `TurnContext` 和版本 0 `StateSnapshot`。工厂只生成局内 ID 并使用规则初始化及编码；不保存数据、不创建 Agent/Prompt/Participant，也不启动调度或模型调用。保存边界由后续应用服务与持久化实现负责。
 - 四子棋规则位于 `domain.game.connectfour`，JSON 编解码和动作 Schema 位于 `adapter.game.connectfour`。快照解码严格核对棋盘、落子数量、席位、当前行动方、胜线和结果，拒绝无法满足不变量的数据，不推测完整历史。
 - 四子棋动态校验依次返回 `UNKNOWN_PARTICIPANT`、`GAME_FINISHED`、`NOT_YOUR_TURN`、`INVALID_ACTION`、`COLUMN_OUT_OF_RANGE`、`COLUMN_FULL`；动作编解码另行严格检查静态字段与类型。
-- `Room` / `Match`：跨重置的会话容器与其中的一局游戏。
+- `Room` / `Match`：跨重置的会话容器与其中的一局游戏。`ExecutionStatus` 表示房间是否在推进；`MatchStatus` 是这一局的生命周期。
 - `TurnContext` / `TurnStatus`：行动阶段的身份、基准版本和生命周期。
 - `ControlCommand` / `CommandResult`：控制请求及其确定性结果。
 - `TurnScheduler` / `DecisionLifecycle`：房间串行调度入口与决策生命周期协调器。
