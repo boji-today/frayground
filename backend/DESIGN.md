@@ -10,7 +10,7 @@
 
 `frayground.storage.mode` 选择启动期适配：基础配置为 `database`，`dev` profile 为 `memory`。两种模式都保留默认 JDBC `transactionManager`，未指定 manager 的 `@Transactional` 使用它；`gameTransactionManager` 在 memory 模式管理内存状态，在 database 模式与 JDBC manager 为同一实例。memory 模式仍保留 DataSource/MyBatis 自动配置；database 模式仍需数据库仓储，当前尚未提供占位仓储或模式热切换。应用实例重建会得到空内存状态，内存模式不满足跨重启历史保留要求。内存事务在 beforeCommit 回调完成后封存工作副本；提交后的回调可读已提交结果，但不能再写入。
 
-`laboratory` profile 使用 memory 和固定 Mock Agent。HTTP 写入经现有调度器，读取经单独的只读查询服务并投影为公开 DTO；房间初始化使用 `MatchFactory` 的完整初始化产物。决策历史读取由独立端口提供，后续数据库适配需要维持一致快照和游标语义。启动方式为 `./mvnw spring-boot:run -Dspring-boot.run.profiles=laboratory`；项目默认绑定 loopback。
+`laboratory` profile 使用 memory 和固定 Mock Agent。HTTP 写入经现有调度器，读取经单独的只读查询服务并投影为公开 DTO；房间初始化使用 `MatchFactory` 的完整初始化产物。决策历史读取由独立端口提供，后续数据库适配需要维持一致快照和游标语义。启动方式为 `./mvnw -pl frayground-app spring-boot:run -Dspring-boot.run.profiles=laboratory`；项目默认绑定 loopback。
 
 ```mermaid
 classDiagram

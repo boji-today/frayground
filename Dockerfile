@@ -8,12 +8,12 @@ RUN npm run build
 FROM eclipse-temurin:21-jdk AS backend
 WORKDIR /src
 COPY backend/ ./
-COPY --from=frontend /frontend/dist/ src/main/resources/static/
+COPY --from=frontend /frontend/dist/ frayground-app/src/main/resources/static/
 RUN chmod +x mvnw && ./mvnw -B -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=backend /src/target/frayground-0.1.0-SNAPSHOT.jar app.jar
+COPY --from=backend /src/frayground-app/target/frayground-app-0.1.0-SNAPSHOT.jar app.jar
 ENV SERVER_ADDRESS=0.0.0.0
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -3,7 +3,7 @@
 *.iml
 .vscode/
 
-backend/target/
+backend/**/target/
 *.class
 *.log
 
@@ -11,9 +11,11 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
-backend/src/main/resources/static/**
-!backend/src/main/resources/static/.gitkeep
+backend/frayground-app/src/main/resources/static/**
+!backend/frayground-app/src/main/resources/static/.gitkeep
 
 .env
 .env.local
-backend/src/main/resources/application-dev.yml
+backend/frayground-app/src/main/resources/application-dev.yml
+
+/handoff

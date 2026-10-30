@@ -1,6 +1,6 @@
 # 四子棋（connect-four / 1）
 
-规则以当前实现为准：[`ConnectFourDefinition`](../../backend/src/main/java/io/frayground/domain/game/connectfour/ConnectFourDefinition.java)、[`ConnectFourRules`](../../backend/src/main/java/io/frayground/domain/game/connectfour/ConnectFourRules.java)。领域类型草图见 [领域模型第 5 节](../03-domain-model.md)。
+规则以当前实现为准：[`ConnectFourDefinition`](../../backend/frayground-game-connectfour/src/main/java/io/frayground/domain/game/connectfour/ConnectFourDefinition.java)、[`ConnectFourRules`](../../backend/frayground-game-connectfour/src/main/java/io/frayground/domain/game/connectfour/ConnectFourRules.java)。领域类型草图见 [领域模型第 5 节](../03-domain-model.md)。
 
 ## 规则
 
@@ -21,10 +21,10 @@
 ## 实现要点
 
 - 领域：`ConnectFourDefinition` 负责初始化、回合、观察、候选、校验、结算与可见历史；`ConnectFourRules` 负责连线、胜负与 `check`；`ConnectFourState` 在构造时调用 `check`。非法动作抛错，不修改旧状态；新棋盘与集合防御性复制。
-- 静态 Schema 与动态规则分离。[`ConnectFourActionSchemaProvider`](../../backend/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourActionSchemaProvider.java) 只约束 `type=place_disc` 与 `column` 整数 0..6、禁止多余字段。满列、回合和终局由 `validate` 判断。
-- [`ConnectFourCodec`](../../backend/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourCodec.java) 编解码快照，并核对棋盘、落子数量、席位、当前行动方、胜线和结果，不推测缺失历史。
-- [`ConnectFourGameConfiguration`](../../backend/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourGameConfiguration.java) 把 definition、codec、schema 组成 `GameRegistration`，按完整 `GameKey` 注册，不做版本回退。
-- [`ConnectFourDecisionMetadata`](../../backend/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourDecisionMetadata.java) 提供同一 `GameKey`，供决策元数据使用。
+- 静态 Schema 与动态规则分离。[`ConnectFourActionSchemaProvider`](../../backend/frayground-game-connectfour/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourActionSchemaProvider.java) 只约束 `type=place_disc` 与 `column` 整数 0..6、禁止多余字段。满列、回合和终局由 `validate` 判断。
+- [`ConnectFourCodec`](../../backend/frayground-game-connectfour/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourCodec.java) 编解码快照，并核对棋盘、落子数量、席位、当前行动方、胜线和结果，不推测缺失历史。
+- [`ConnectFourGameConfiguration`](../../backend/frayground-game-connectfour/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourGameConfiguration.java) 把 definition、codec、schema 组成 `GameRegistration`，按完整 `GameKey` 注册，不做版本回退。
+- [`ConnectFourDecisionMetadata`](../../backend/frayground-game-connectfour/src/main/java/io/frayground/adapter/game/connectfour/ConnectFourDecisionMetadata.java) 提供同一 `GameKey`，供决策元数据使用。
 
 ## 配置项
 
@@ -32,6 +32,6 @@
 
 | 项 | 位置 | 行为 |
 | --- | --- | --- |
-| `frayground.games.connect-four.enabled` | [`application.yml`](../../backend/src/main/resources/application.yml) 当前为 `true` | `ConnectFourGameConfiguration` 要求值为 `true`，`matchIfMissing=false`。缺省或 `false` 不注册 definition、codec、schema。修改后需重启。 |
+| `frayground.games.connect-four.enabled` | [`application.yml`](../../backend/frayground-app/src/main/resources/application.yml) 当前为 `true` | `ConnectFourGameConfiguration` 要求值为 `true`，`matchIfMissing=false`。缺省或 `false` 不注册 definition、codec、schema。修改后需重启。 |
 
 行数 6、列数 7、连珠长度 4、先手席位 `A`、唯一动作 `place_disc` 写死在领域代码与 JSON Schema 中，没有对应配置项。

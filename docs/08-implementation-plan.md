@@ -34,7 +34,7 @@ flowchart LR
 
 **前置：**已确认设计；联网下载/容器使用获得所需授权。
 
-**文件与模块：**根 `Dockerfile`、`compose.yaml`（默认文件名，不必 `-f`）、`.gitignore`、`.dockerignore`；`backend/pom.xml`、Maven Wrapper、Application、application.yml、`src/main/resources/static/`；`frontend/` Vite 占位；`backend/src/main/resources/db/schema.sql`、`data.sql`；不创建业务空类。
+**文件与模块：**根 `Dockerfile`、`compose.yaml`（默认文件名，不必 `-f`）、`.gitignore`、`.dockerignore`；`backend/pom.xml`、Maven Wrapper、Application、application.yml、`src/main/resources/static/`；`frontend/` Vite 占位；`backend/frayground-app/src/main/resources/db/schema.sql`、`data.sql`；不创建业务空类。
 
 **内容与接口：**Java 21、Boot 4.1.1、MyBatis-Plus 3.5.17 Boot4 starter；JUnit6/Testcontainers2；Jackson3/Validator3。核验 MySQL 8.4 精确镜像补丁/摘要、JDBC 驱动和 JSON TypeHandler 依赖。应用 `spring.sql.init.mode=never`，显式 UTC、utf8mb4 和 loopback。Compose 挂载正式两份 SQL，只有首次空卷执行；种子两 Agent/初始 Prompt/Mock 配置/单 Room，无伪造比赛历史。
 

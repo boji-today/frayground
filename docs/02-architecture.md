@@ -6,7 +6,7 @@
 
 | 项目 | 设计基线 | 管理方式 |
 | --- | --- | --- |
-| Java / Spring | Java 21 / Spring Boot 4.1.1 | 单 Maven 工程；Boot BOM 管理 Spring 依赖 |
+| Java / Spring | Java 21 / Spring Boot 4.1.1 | 多模块 Maven reactor；Boot BOM 管理 Spring 依赖 |
 | 构建 | Maven 3.10.0；后续纳入 Maven Wrapper | 不使用 Maven 4 预览版 |
 | 持久化 | MySQL 8.4 LTS、InnoDB、utf8mb4；MyBatis-Plus 3.5.17 Boot 4 starter | JDBC 驱动沿用 Boot BOM；镜像后续锁定补丁及摘要 |
 | JSON | Jackson 3.1.5（Boot BOM）、networknt Validator 3.0.8 | Schema 2020-12；禁止从模型获取远程 `$ref` |
@@ -21,7 +21,7 @@
 
 ## 2. 模块与依赖
 
-后端根包 `io.frayground`，先按包分模块，不建大量 Maven 子工程。Entity、HTTP DTO 和纯领域 Record 分开；不为每个 Record 建一层接口。领域不导入 Spring、Jackson、MyBatis 或模型框架。GameState/GameAction/GameObservation 为开放接口，不能用封闭 sealed 层次阻止新增游戏；sealed 可用于校验结果等平台内部封闭类型。
+后端根包 `io.frayground`。Maven 模块为 `frayground-domain`、`frayground-engine`、`frayground-agent`、`frayground-application`、`frayground-game-spi`、`frayground-game-connectfour`、`frayground-game-blackjack`、`frayground-storage-memory`、`frayground-adapter-model`、`frayground-web`、`frayground-app`。engine 与 agent 依赖 domain；application 依赖 domain、engine、agent；game-spi 依赖 domain、engine、application；各玩法依赖 domain、game-spi、application 且互不依赖；storage-memory 依赖 domain、application；adapter-model 依赖 agent、domain；web 依赖 application、engine、domain、game-spi、connectfour；app 聚合上述实现。领域契约、类依赖和运行时行为不变。Entity、HTTP DTO 和纯领域 Record 分开；不为每个 Record 建一层接口。领域不导入 Spring、Jackson、MyBatis 或模型框架。GameState/GameAction/GameObservation 为开放接口，不能用封闭 sealed 层次阻止新增游戏；sealed 可用于校验结果等平台内部封闭类型。
 
 ```mermaid
 flowchart LR

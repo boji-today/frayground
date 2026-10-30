@@ -17,7 +17,7 @@ Backend 已提供内存 laboratory profile：双 Agent 四子棋、调度控制�
 分开开发：
 
 ```bash
-cd backend && ./mvnw spring-boot:run
+cd backend && ./mvnw -pl frayground-app spring-boot:run
 cd frontend && npm install && npm run dev
 ```
 
@@ -33,7 +33,7 @@ docker compose up --build
 
 应用 `spring.sql.init.mode=never`，不执行 `schema.sql` / `data.sql`。MySQL 服务尚未加入 Compose。
 
-仅启动内存后端时，可在 `backend` 下运行 `SPRING_PROFILES_ACTIVE=laboratory ./mvnw spring-boot:run`。双方默认使用确定性 Mock。可通过环境变量独立配置双方，例如：
+仅启动内存后端时，可在 `backend` 下运行 `SPRING_PROFILES_ACTIVE=laboratory ./mvnw -pl frayground-app spring-boot:run`。双方默认使用确定性 Mock。可通过环境变量独立配置双方，例如：
 
 ```bash
 export FRAYGROUND_LABORATORY_AGENTS_A_RUNTIME=MOCK
@@ -41,7 +41,7 @@ export FRAYGROUND_LABORATORY_AGENTS_A_PROMPT='Choose a legal move.'
 export FRAYGROUND_LABORATORY_AGENTS_B_RUNTIME=LLM
 export FRAYGROUND_LABORATORY_AGENTS_B_PROMPT='Choose a legal move.'
 export DEEPSEEK_API_KEY='<your key>'
-SPRING_PROFILES_ACTIVE=laboratory ./mvnw spring-boot:run
+SPRING_PROFILES_ACTIVE=laboratory ./mvnw -pl frayground-app spring-boot:run
 ```
 
 双方均使用 LLM 时将 A 的 runtime 改为 `LLM`。原有 `FRAYGROUND_MODEL_SYSTEM_API_KEYS_DEEPSEEK_FLASH` 仍可用，且同时设置时优先。密钥仅保存在后端环境中，不应提交到仓库。实验室接口与本地验收方式见 [测试策略](docs/07-testing.md)。通过 API 可先 `POST /api/v1/rooms/current` 初始化，再查询 `GET /api/v1/rooms/current` 取得 room revision 和 match ID；向 `/api/v1/rooms/{roomId}/commands` POST `commandId`、`expectedRoomRevision`、`expectedMatchId` 和 `type`（`step`、`continue`、`start`、`pause` 或 `reset`）。写请求需带 `X-Frayground-Client: laboratory`。通过 `/api/v1/matches/{matchId}` 及其 `/events`、`/decisions` 查询状态与记录。

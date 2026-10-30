@@ -8,7 +8,7 @@ Entity、Mapper、XML SQL、Jackson 3 JSON TypeHandler 属 `adapter.persistence`
 
 应用会话时区设为 UTC，时间列 DATETIME(6)，接口输出 UTC ISO-8601。ID 为 CHAR(36) CHARACTER SET ascii COLLATE ascii_bin 的 UUID；文本为 utf8mb4；版本和序号使用 BIGINT，限制 0..9007199254740991，避免前端精度损失。状态用 VARCHAR + CHECK，不用数据库 ENUM。规则与配置 JSON 用 MySQL JSON，索引关系字段不埋在 JSON 中。
 
-完整 schema 已落盘为 [`backend/src/main/resources/db/schema.sql`](../backend/src/main/resources/db/schema.sql)；种子为 [`data.sql`](../backend/src/main/resources/db/data.sql)。应用不执行这两份脚本。`schema.sql` 以 `CREATE DATABASE IF NOT EXISTS frayground`（utf8mb4 / utf8mb4_0900_ai_ci）建库并 `USE frayground`，随后建表；不含 DROP/TRUNCATE 或自动 ALTER。由于 Room/Agent 存在环形指针，末尾统一添加外键。本机尚未对真实 MySQL 执行这些脚本。
+完整 schema 已落盘为 [`backend/frayground-app/src/main/resources/db/schema.sql`](../backend/frayground-app/src/main/resources/db/schema.sql)；种子为 [`data.sql`](../backend/frayground-app/src/main/resources/db/data.sql)。应用不执行这两份脚本。`schema.sql` 以 `CREATE DATABASE IF NOT EXISTS frayground`（utf8mb4 / utf8mb4_0900_ai_ci）建库并 `USE frayground`，随后建表；不含 DROP/TRUNCATE 或自动 ALTER。由于 Room/Agent 存在环形指针，末尾统一添加外键。本机尚未对真实 MySQL 执行这些脚本。
 
 ## 2. schema.sql 草案
 
@@ -397,8 +397,8 @@ services:
     ports: ["127.0.0.1:3306:3306"]
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./backend/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./backend/src/main/resources/db/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./backend/frayground-app/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/frayground-app/src/main/resources/db/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
 volumes:
   mysql-data:
 ```

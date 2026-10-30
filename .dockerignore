@@ -5,8 +5,8 @@
 **/*.md
 docs
 
-backend/target
-backend/src/main/resources/application-dev.yml
+backend/**/target
+backend/frayground-app/src/main/resources/application-dev.yml
 frontend/node_modules
 frontend/dist
 frontend/.vite
